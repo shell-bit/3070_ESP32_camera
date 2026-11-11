@@ -1,0 +1,29 @@
+# Track only LCD viewer firmware.
+/*
+!/.gitignore
+!/firmware/
+/firmware/*
+!/firmware/lcd_viewer/
+
+# Exclude generated files and dependencies.
+**/.build/
+**/build*/
+**/__pycache__/
+*.pyc
+*.exe
+*.dll
+*.zip
+*.bin
+*.elf
+*.map
+*.o
+*.a
+*.log
+
+# Exclude local credentials and provisioning data.
+.env*
+*.local.h
+setup.json
+
+# This test depends on workspace delivery tools.
+/firmware/lcd_viewer/tests/test_delivery_tools.py

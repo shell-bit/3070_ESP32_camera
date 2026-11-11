@@ -1,0 +1,4 @@
+.build/
+*.local.h
+__pycache__/
+setup.json

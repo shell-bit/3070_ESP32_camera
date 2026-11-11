@@ -1,0 +1,13 @@
+{
+  "lvgl": {
+    "version": "8.3.10",
+    "url": "https://files.waveshare.com/wiki/ESP32-S3-Touch-LCD-2.8/ESP32-S3-Touch-LCD-2.8-V2-Demo.zip",
+    "archive_sha256": "b09e8cdfb47212ea94a06ba02a11568dfb70dcc1ea040142067d08e374b29737",
+    "archive_prefix": "Arduino/libraries/lvgl/",
+    "fingerprint": {
+      "files": 1683,
+      "tree_sha256": "1a7356477b22765e25178240aedd0fe41a7617e49b6fda1d410d4f34549c20b0",
+      "config_sha256": "f9b83df58bd07924cb1a82357165a3dce6285cfe30c137d9f0387edfa73a55f4"
+    }
+  }
+}
