@@ -1,8 +1,6 @@
 # Track LCD viewer firmware and the approved AI development documentation.
 /*
 !/.gitignore
-!/AGENTS.md
-!/.agents/
 !/firmware/
 /firmware/*
 !/firmware/lcd_viewer/

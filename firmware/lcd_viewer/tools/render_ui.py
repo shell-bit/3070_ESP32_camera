@@ -164,11 +164,21 @@ def main():
         tools["gcc"], "-std=c99", "-O2", "-DLV_CONF_INCLUDE_SIMPLE",
         "-I", LVGL, "-I", CONFIG.parent, "-c", font_source, "-o", font_object,
     ])
-    view = [ROOT / "src/ui/monitor_view.cpp", font_object]
-    renderer = compile_test(tools, library, "render_ui", [test_root / "render_ui.cpp", *view], includes=(ROOT,))
+    view = [ROOT / "src/ui/monitor_view.cpp", ROOT / "src/ui/setup_view.cpp",
+            ROOT / "src/config/setup_controller.cpp", ROOT / "src/ui/preview_ui.cpp", font_object]
+    fixture_path = test_root / 'ui_fixtures.json'
+    expected = json.loads(fixture_path.read_text(encoding='utf-8'))['scenes']
+    if not expected or len(set(expected)) != len(expected) or any(
+            Path(name).name != name or not name.endswith('.png') for name in expected):
+        raise SystemExit('Invalid expected UI fixture list')
+    proof_inputs = [*source_files().values(), *test_root.glob('*.cpp'),
+                    *test_root.glob('fakes/**/*.h'), fixture_path,
+                    Path(__file__).resolve(), ROOT / 'tools/project_layout.py', ROOT / 'dependencies.lock.json']
+    proof_hashes = {path.relative_to(ROOT).as_posix(): hash_file(path) for path in proof_inputs}
+    renderer = compile_test(tools, library, "render_ui", [test_root / "render_ui.cpp", *view], includes=(fakes, ROOT))
     controller = compile_test(
         tools, library, "test_preview_ui",
-        [test_root / "test_preview_ui.cpp", ROOT / "src/ui/preview_ui.cpp", *view],
+        [test_root / "test_preview_ui.cpp", *view],
         includes=(fakes, ROOT),
     )
     protocol = compile_test(
@@ -186,6 +196,10 @@ def main():
     test([controller, "unconfigured"], OUT / "controller-unconfigured-results.log")
     test([protocol], OUT / "protocol-test-results.log")
     screenshots = convert_screenshots(raw_path, png_path)
+    if {Path(item['file']).name for item in screenshots} != set(expected):
+        raise SystemExit('Rendered scenes differ from tests/ui_fixtures.json')
+    if proof_hashes != {path.relative_to(ROOT).as_posix(): hash_file(path) for path in proof_inputs}:
+        raise SystemExit('Native test inputs changed during verification; rerun rendering')
     manifest.write_text(json.dumps({
         "description": "Host LVGL render with a synthetic RGB565 camera frame",
         "toolchain": versions,
@@ -193,14 +207,7 @@ def main():
         "lvgl_version": "8.3.10",
         "lvgl_config_sha256": hash_file(CONFIG),
         "lvgl_library_cache_key": digest,
-        "source_sha256": {
-            path.relative_to(ROOT).as_posix(): hash_file(path)
-            for path in (
-                *source_files().values(), test_root / "render_ui.cpp", test_root / "test_mjpeg_parser.cpp",
-                test_root / "test_preview_ui.cpp", fakes / "native_display.h", fakes / "Arduino.h",
-                Path(__file__).resolve(), ROOT / 'tools/project_layout.py', ROOT / 'dependencies.lock.json',
-            )
-        },
+        "source_sha256": proof_hashes,
         "screenshots": screenshots,
     }, indent=2) + "\n", encoding="utf-8")
     print(f"Wrote {len(screenshots)} PNGs and test logs to {OUT}")

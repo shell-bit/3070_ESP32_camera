@@ -11,9 +11,7 @@ $paths = & python -B $layoutTool paths | ConvertFrom-Json
 if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve viewer project paths' }
 $build = $paths.build
 New-Item -ItemType Directory -Force $build | Out-Null
-& g++ -std=c++17 -Wall -Wextra -Werror -static (Join-Path $root 'tests/test_mjpeg_parser.cpp') (Join-Path $root 'src/preview/mjpeg_parser.cpp') -o (Join-Path $build 'test_mjpeg_parser.exe')
-if ($LASTEXITCODE -ne 0) { throw 'Host test compilation failed' }
-& (Join-Path $build 'test_mjpeg_parser.exe') | Tee-Object -FilePath (Join-Path $build 'test-results.log')
+& python -B (Join-Path $root 'tools/run_host_tests.py')
 if ($LASTEXITCODE -ne 0) { throw 'Host tests failed' }
 if ($HostTestsOnly) { exit 0 }
 $coreArguments = @('core', 'list', '--format', 'json')

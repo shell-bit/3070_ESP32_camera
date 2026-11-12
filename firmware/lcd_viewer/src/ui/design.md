@@ -7,9 +7,11 @@ supports the descriptions below; physical hardware acceptance remains separate.
 
 ## Purpose and current capabilities
 
-The LCD viewer is an on-demand LAN camera-preview terminal. While viewing is
-stopped, it presents Home, Status, and Setup pages. Start preview or a short BOOT
-press starts a 60-second viewing session with a full-screen monitor.
+The LCD viewer is an on-demand LAN camera-preview terminal with an independent
+Wi-Fi clock. While viewing is stopped, it presents Home, Status, and Setup pages.
+After both Wi-Fi and camera are configured, Start preview or a short BOOT press
+starts a 60-second viewing session with a full-screen monitor. Wi-Fi alone is
+sufficient for network time; camera setup can be completed later.
 
 The configured target is the Waveshare ESP32-S3-Touch-LCD-2.8 V2, with an ST7789
 display, CST3530 touch controller, 320 x 240 landscape output, and PSRAM. The
@@ -19,15 +21,16 @@ settings, not confirmation of the identity or capacity of a connected board.
 | Capability | Current implementation |
 | --- | --- |
 | Startup | Initialize serial, check PSRAM, initialize the display and JPEG buffers, load configuration, start the preview client, and create the UI. Initialization failures are reported over serial. |
-| Provisioning | Accept newline-terminated JSON over USB serial at 115200 baud while viewing is stopped. Store Wi-Fi credentials, camera host, pairing token, and ports in NVS, then restart. Credentials are not echoed. |
+| Provisioning | Touch Setup independently saves Wi-Fi or camera host/token/ports and preserves the other saved group. Each section has Save & restart with checked NVS writes and previous-record recovery. Either group can be saved first. Idle USB JSON at 115200 baud remains a whole-record replacement outside draft/scan ownership. Credentials are not echoed. |
+| Clock | Nonblocking SNTP synchronization, Beijing time (UTC+8), seconds in Home and Monitor, date/status in Connection info. Unsynchronized startup shows placeholders; synchronized time continues during Wi-Fi loss. |
 | Session control | Create, renew, query, and close an authenticated camera-preview session. Viewing lasts 60 seconds; renewal is due every 10 seconds. Continue resets the viewing countdown to 60 seconds from the click. |
 | Video reception | Connect directly to the configured LAN camera. Control defaults to HTTP port 80; MJPEG defaults to port 81. Both send Bearer authorization. Control and stream reception use separate FreeRTOS tasks. |
 | Parsing and recovery | Parse fragmented and chunked multipart MJPEG, bound headers and JPEG size, check sequence numbers, and recover from connection or session loss. Session generations reject obsolete responses and frames. |
 | Decode and display | Use two 128 KiB JPEG buffers and two 320 x 240 RGB565 buffers. Decode into a candidate image and swap only on success, preserving the previous valid picture when decoding fails. |
-| Input and backlight | Use BOOT for start/stop and touch for navigation, Start, Continue, and Close. Keep the backlight on while viewing or unconfigured; turn it off after approximately three seconds of configured inactivity. |
+| Input and backlight | BOOT starts/stops viewing when preview configuration is complete, otherwise it only wakes the display. It acts as Back inside Setup. After 120 seconds without input, Setup discards its draft and returns Home. The 30-second idle cutoff applies whenever Wi-Fi is saved, including Wi-Fi-only operation; dashboard tab touches do not restart it. |
 
 The viewer does not provide local recording, playback, audio talkback, face
-recognition, cloud video relay, weather, or clock features. Enrollment and identity
+recognition, cloud video relay, or weather. Enrollment and identity
 processing appear only as camera-reported preview-pause reasons.
 
 See the [LCD README](../../README.md) for build and provisioning instructions and
@@ -61,12 +64,17 @@ only after the synchronous SPI transfer completes.
 | [mjpeg_parser.cpp](../preview/mjpeg_parser.cpp) | Bounded multipart/chunked parsing and complete-frame delivery. |
 | [jpeg_display.cpp](../board/jpeg_display.cpp) | Exact-size JPEG validation, RGB565 decoding, and successful-image buffer swap. |
 | [board_port.cpp](../board/board_port.cpp) | Display, touch, BOOT debounce, backlight, and LVGL timing/flush integration. |
-| [viewer_config.cpp](../config/viewer_config.cpp) | USB JSON provisioning and NVS persistence. |
+| [viewer_config.h](../config/viewer_config.h) and [viewer_config.cpp](../config/viewer_config.cpp) | Separate Wi-Fi/camera readiness, optional-group stored validation, USB JSON replacement and NVS persistence with unchanged 360-byte layout. |
+| [setup_controller.cpp](../config/setup_controller.cpp) | Section-scoped in-memory draft, field edits, explicit secret keep/replace, preserving the other group on save, cancel, and inactivity. |
+| [setup_view.cpp](setup_view.cpp) | On-demand Setup pages, bounded network list, keyboard, discard confirmation, connection information, and USB help. |
+| [setup_scan.cpp](../preview/setup_scan.cpp) | Scan ownership, operation IDs, timeout/cancellation, capped results, and cleanup through the control worker's radio adapter. |
+| [viewer_clock.cpp](../clock/viewer_clock.cpp) | SNTP startup/callback and copied wall-clock snapshot; independent of monotonic session timing. |
 | [monitor_font_28.c](monitor_font_28.c) | Local 28 px display font derived from the pinned LVGL font. |
 
-Home/Status/Setup and Monitor are sibling LVGL panels on the same active screen.
-The view switches their visibility using `PreviewSnapshot.active`; Monitor uses
-the same LVGL renderer as the dashboard pages.
+Home/Status and Monitor share the active LVGL screen. Setup hides those panels
+and creates only the current Setup page/editor on demand. The view switches
+Monitor visibility using `PreviewSnapshot.active`; all pages use the same LVGL
+renderer and the unchanged 48 KiB allocator.
 
 ## Overall visual style
 
@@ -111,8 +119,9 @@ color appearance requires hardware validation.
   disabled fill. Notice panels have a 7 px radius.
 - The camera mark is a blue outlined rounded rectangle and polyline drawn with
   LVGL primitives. It does not require a bitmap asset.
-- Default LVGL styles are removed from the constructed components. Panels are
-  non-scrollable; navigation uses explicit buttons rather than swipe gestures.
+- Default LVGL styles are removed from the constructed components. Dashboard
+  panels are non-scrollable. Setup lists can scroll; navigation uses explicit
+  buttons. The compact keyboard uses smaller keys than the major 44 px actions.
 
 ## Screen inventory and layout
 
@@ -120,12 +129,12 @@ Coordinates below are screen coordinates unless stated otherwise.
 
 ### Shared stopped-page structure
 
-Home, Status, and Setup share a 42 px header, a 154 px content area, and a 44 px
+Home and Status share a 42 px header, a 154 px content area, and a 44 px
 bottom navigation bar:
 
 | Region | Bounds | Content |
 | --- | --- | --- |
-| Header | x=0, y=0, w=320, h=42 | `Camera monitor`, `LOCAL PREVIEW`, and right-aligned Wi-Fi status. |
+| Header | x=0, y=0, w=320, h=42 | `Camera monitor`, `LOCAL PREVIEW`, right-aligned time, and Wi-Fi status beneath the time. |
 | Content | x=0, y=42, w=320, h=154 | The selected page. |
 | Navigation | x=0, y=196, w=320, h=44 | Home, Status, and Setup with widths 106, 107, and 107 px. |
 
@@ -140,7 +149,9 @@ at x=14, y=142 with a size of 292 x 44 px and a centered play symbol/text group.
 
 | Condition | Main status | Explanation | Hint | Start |
 | --- | --- | --- | --- | --- |
-| Unconfigured | `Setup required` | `Configure via USB serial` | `See Setup` | Disabled. |
+| Wi-Fi absent, with or without a saved camera | `Setup required` | `Configure Wi-Fi` | `Open Setup` | Disabled. |
+| Wi-Fi saved and connected, camera absent | `Wi-Fi online` | `Camera not set (optional for time)` | `BOOT to wake` | Disabled. |
+| Wi-Fi saved but disconnected, camera absent | `Wi-Fi offline` | `Camera not set (optional for time)` | `BOOT to wake` | Disabled. |
 | Configured, Wi-Fi connected | `Ready` | `Preview is off` | `BOOT to start` | Enabled. |
 | Configured, Wi-Fi disconnected | `Wi-Fi offline` | `Waiting for Wi-Fi` | `BOOT to start` | Enabled. |
 
@@ -150,24 +161,60 @@ existing connection-waiting flow.
 
 ### Status
 
-Status has four read-only rows: `Wi-Fi`, `Configuration`, `Preview`, and
-`Idle backlight`. Labels are left-aligned, Blue values are right-aligned, and
-thin Surface lines separate the first three rows.
+Status has five read-only rows: `Wi-Fi`, `Wi-Fi setup`, `Camera setup`, `Preview`,
+and `Idle backlight`. Labels are left-aligned, Blue values are right-aligned,
+and thin Surface lines separate the rows. Wi-Fi reports the actual connection;
+the two setup rows independently show `Saved` or `Not set`.
 
 This page is accessible only while viewing is stopped, so its Preview value is
 always `Stopped`. It is not an active-session statistics page. The backlight row
-shows `Off after 3s` when configured or `Stays on for setup` when unconfigured.
+shows `Off after 30s` when Wi-Fi is saved or `Stays on for setup` otherwise.
 
 ### Setup
 
-Setup is an informational page with a Peach `USB setup` heading and these steps:
+Setup is a focused flow with Wi-Fi, Camera, Connection info, and USB setup entries.
+It retains the dark Base/Crust palette, Peach headings, Blue actions, and muted
+helper text. Full-screen editors make room for a text field and compact ASCII
+keyboard; passwords and pairing tokens are masked with no last-character reveal.
+Saved secrets are never prefilled in a widget. Keep retains the original secret,
+Replace accepts new nonempty text, and Open network explicitly clears a password.
 
-1. `Connect the USB cable`
-2. `Send your setup JSON`
-3. `Auto-restart; press BOOT`
+Wi-Fi offers Refresh and manual SSID entry for hidden networks. The asynchronous
+list contains at most 16 strongest distinct network/security pairs, with signal,
+security, and an access-point suffix. Names outside the font repertoire are
+escaped for display but retain their original bytes when selected. Scanning
+temporarily disconnects LCD Wi-Fi and then reconnects with the boot configuration.
+Pending changes are identified separately from live connection information.
 
-It also displays `115200 baud | configure while stopped`. The page contains no
-editable configuration form, credential display, or reset control.
+Camera edits the host and pairing token; Advanced contains the two ports. The
+menu has only Back in its footer. Wi-Fi and Camera each have Back and Save &
+restart in a 44 px footer at y=196: Back is 114 px wide; Save starts at x=116
+and is 204 px wide. Wi-Fi Scan is in the content area; Camera Advanced and the
+saved-configuration Start shortcut share that row. Start is disabled for dirty
+drafts, incomplete preview configuration, or scan ownership.
+
+The flow selects one editable section at a time. Save copies only that section
+into the saved record and restarts after verification. Camera Save requires a
+host and a token of at least 24 characters; Wi-Fi Save does not require camera
+fields and preserves any existing camera token, including a legacy short token.
+Validation or storage errors leave edits available for correction. Back from a
+changed section asks to discard it; Keep editing returns to that section, while
+Discard returns to the menu without a write. BOOT follows Back and never starts
+a preview while Setup owns input, including the menu. A 120-second inactivity
+deadline clears edits/secrets and cancels scanning before Home idle policy resumes.
+
+Connection info shows the live LCD network, IP and signal, and date/time status.
+USB setup retains the 115200-baud JSON recovery instructions;
+entering it releases the draft (with confirmation when changed) and drains partial
+input before accepting a fresh complete JSON line. All four string keys remain
+required: paired empty camera fields explicitly clear that group, and paired
+empty Wi-Fi fields omit Wi-Fi. This replacement behavior differs from the
+touchscreen's scoped Save. It does not expose credentials.
+
+The clock shows `HH:MM:SS` in UTC+8. Before synchronization it shows `--:--:--`.
+After synchronization it continues locally while offline, using muted text for
+offline holdover. The Monitor clock sits between mode and countdown. Clock updates
+do not reset, extend, or replace the existing monotonic preview deadlines.
 
 ### Monitor
 
@@ -177,7 +224,7 @@ is presented underneath the following overlays:
 
 | Region | Bounds | Appearance and content |
 | --- | --- | --- |
-| State bar | x=0, y=0, w=320, h=26 | Crust at `LV_OPA_90`; colored state dot/mode on the left, Peach countdown on the right. |
+| State bar | x=0, y=0, w=320, h=26 | Crust at `LV_OPA_90`; colored state dot/mode on the left, clock in the center, Peach countdown on the right. |
 | Frame metadata | x=0, y=178, w=320, h=18 | Crust at `LV_OPA_80`; frame sequence on the left, age on the right. |
 | Actions | x=0, y=196, w=320, h=44 | Opaque Crust; Peach `Continue 60s` over 192 px and Red `Close` over 128 px, separated by a thin line. |
 
@@ -196,8 +243,11 @@ picture is retained or `No picture yet.` before the first usable frame.
 
 ### Navigation and actions
 
-- A short BOOT press starts viewing from any stopped-page tab and stops an active
-  session. BOOT uses GPIO0 with a 35 ms debounce during normal operation.
+- A short BOOT press starts viewing from Home/Status when both groups are saved
+  and stops an active session. With incomplete preview configuration it only wakes
+  the screen, without sending a Start command.
+  Within Setup it acts as Back and consumes the press. BOOT uses GPIO0 with a
+  35 ms debounce during normal operation.
 - Touch Start requires a configured, inactive viewer. An unconfigured BOOT press
   cannot start a session either.
 - `Continue 60s` resets the viewing deadline to 60 seconds from the click. It
@@ -245,11 +295,14 @@ is not a measured video frame rate.
 
 ### Backlight behavior
 
-The backlight remains on during active viewing and while the device is
-unconfigured. A configured device turns it off approximately three seconds after
-UI initialization or the transition from active to inactive. Switching dashboard
+The backlight remains on during active viewing, while a Setup flow owns input,
+and while Wi-Fi has not been configured. A device with saved Wi-Fi turns it off
+approximately 30 seconds after UI initialization or the transition from
+active to inactive, including Wi-Fi-only operation. Switching dashboard
 tabs does not restart this timer. BOOT explicitly turns the backlight on and
-resets the idle timer.
+resets the idle timer. Setup has a separate finite 120-second inactivity policy;
+exiting or timing out restarts the normal idle timer. The timer measures time
+from those reset events, not time since any touch interaction.
 
 Backlight-off does not put the microcontroller into deep sleep. Wi-Fi remains
 configured for automatic reconnect and modem sleep. There is no general
@@ -284,23 +337,29 @@ Dependency pins, notices, and licenses remain maintained in
 
 ## Verification and evidence boundaries
 
-This documentation update is based on source inspection and existing historical
-records. It does not constitute a new firmware build, host-test run, off-screen
-render, flash operation, or physical acceptance test.
+This document describes source behavior. Current software verification belongs
+to source-bound build/native manifests and the approved implementation plan;
+neither this document nor host rendering constitutes physical acceptance.
 
 The existing [native renderer](../../tests/render_ui.cpp) exercises the production
 view with real LVGL and synthetic RGB565 images. Its scenes cover the dashboard
 pages, unconfigured/offline states, first-frame waiting, LIVE, event/enrollment/
 identity pauses, Wi-Fi reconnecting, stale frames, errors, long text, session
-replacement, and stop. [Controller tests](../../tests/test_preview_ui.cpp) cover
-UI actions, BOOT, timing, backlight, and generation handling.
+replacement, stop, and a basic current Setup-menu snapshot. The retained inventory
+contains 16 scenes. [Controller tests](../../tests/test_preview_ui.cpp) cover preview
+actions, BOOT, session expiry, backlight, and generation handling. Dedicated
+editor/scan/save/clock/Wi-Fi-only cases and feature memory cycling were removed
+by the user-approved test cleanup; those features remain implemented but are no
+longer covered by the retained harness. The fixture inventory is maintained in
+[ui_fixtures.json](../../tests/ui_fixtures.json).
 
 The [render tool](../../tools/render_ui.py) is documented in the LCD README and
-writes current results to repository-root `build/lcd_viewer/ui-native/`. Legacy
-images under `firmware/lcd_viewer/.build/ui-native/` are historical off-screen
-examples with synthetic video content, not physical camera captures or fresh
-verification of the current source. Generated screenshots are not required to
-read this document.
+writes current results to repository-root `build/lcd_viewer/ui-native/`. The
+legacy `firmware/lcd_viewer/.build/ui-native/` path is retired with the duplicate
+SDK cleanup. Its historical images were off-screen examples with synthetic video
+content, not physical camera captures or fresh verification of the current source.
+Use the current source-bound renderer output; generated screenshots are not
+required to read this document.
 
 Physical display colors, touch coordinates, BOOT response, backlight behavior,
 sustained streaming, camera-priority recovery, frame rate, latency, and power

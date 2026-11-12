@@ -30,13 +30,14 @@ constexpr lv_coord_t kNavW[] = {106, 107, 107};
 
 struct View {
     lv_obj_t *dashboard, *monitor, *pages[PageCount], *nav[PageCount], *navLabels[PageCount], *underline;
-    lv_obj_t *wifi, *hero, *homeDetail, *hint, *start, *startText, *play, *statusValues[4];
-    lv_obj_t *image, *stateDot, *mode, *remaining, *frame, *age, *extend, *stop;
+    lv_obj_t *wifi, *dashboardTime, *hero, *homeDetail, *sessionLength, *hint, *start, *startText, *play;
+    lv_obj_t* statusValues[5];
+    lv_obj_t *image, *stateDot, *mode, *monitorTime, *remaining, *frame, *age, *extend, *stop;
     lv_obj_t *notice, *noticeTitle, *noticePicture, *noticeDetail;
     lv_coord_t noticeDetailHeight;
     lv_img_dsc_t picture;
     UiActionHandler handler;
-    bool active, configured;
+    bool active, configured, setup;
 };
 
 View ui{};
@@ -111,7 +112,7 @@ lv_obj_t* button(lv_obj_t* parent, lv_coord_t x, lv_coord_t y, lv_coord_t w,
 
 void selectPage(Page page) {
     for (int i = 0; i < PageCount; ++i) {
-        visible(ui.pages[i], i == page);
+        if (ui.pages[i]) visible(ui.pages[i], i == page);
         textColor(ui.navLabels[i], i == page ? kPeach : kText);
     }
     lv_obj_set_x(ui.underline, kNavX[page]);
@@ -122,7 +123,8 @@ void navigate(lv_event_t* event) {
     if (ui.active) return;
     for (int i = 0; i < PageCount; ++i) {
         if (lv_event_get_target(event) == ui.nav[i]) {
-            selectPage(static_cast<Page>(i));
+            if (i == Setup && ui.handler) ui.handler(UiAction::Setup);
+            else selectPage(static_cast<Page>(i));
             return;
         }
     }
@@ -157,15 +159,18 @@ void dashboard(lv_obj_t* screen) {
     auto* top = panel(ui.dashboard, 0, 0, kWidth, kHeaderHeight, kCrust);
     label(top, "Camera monitor", lv_font_montserrat_14, kText, 13, 5);
     label(top, "LOCAL PREVIEW", lv_font_montserrat_12, kMuted, 13, 23);
-    ui.wifi = label(top, "", lv_font_montserrat_12, kMuted, 189, 14, 118, LV_TEXT_ALIGN_RIGHT);
+    ui.dashboardTime = label(top, "", lv_font_montserrat_14, kText, 189, 4, 118, LV_TEXT_ALIGN_RIGHT);
+    ui.wifi = label(top, "", lv_font_montserrat_12, kMuted, 189, 23, 118, LV_TEXT_ALIGN_RIGHT);
 
-    for (auto& page : ui.pages) page = panel(ui.dashboard, 0, kHeaderHeight, kWidth, kActionsY - kHeaderHeight);
+    for (int i = Home; i < Setup; ++i) {
+        ui.pages[i] = panel(ui.dashboard, 0, kHeaderHeight, kWidth, kActionsY - kHeaderHeight);
+    }
     auto* home = ui.pages[Home];
     cameraMark(home);
     ui.hero = label(home, "", monitor_font_28, kPeach, 88, 17, 225);
     lv_label_set_long_mode(ui.hero, LV_LABEL_LONG_CLIP);
     ui.homeDetail = label(home, "", lv_font_montserrat_12, kMuted, 88, 52);
-    label(home, "60s sessions", lv_font_montserrat_12, kMuted, 15, 80);
+    ui.sessionLength = label(home, "60s sessions", lv_font_montserrat_12, kMuted, 15, 80);
     ui.hint = label(home, "", lv_font_montserrat_12, kMuted, 154, 80, 151, LV_TEXT_ALIGN_RIGHT);
     ui.start = button(home, 14, 100, 292, kBlue, 0x74a8fa, action);
     lv_obj_set_style_radius(ui.start, 6, 0);
@@ -176,20 +181,13 @@ void dashboard(lv_obj_t* screen) {
     ui.startText = label(startLabel, "Start preview", lv_font_montserrat_14, kCrust, 19, 1);
 
     auto* status = ui.pages[Status];
-    const char* keys[] = {"Wi-Fi", "Configuration", "Preview", "Idle backlight"};
-    for (int i = 0; i < 4; ++i) {
-        const auto y = static_cast<lv_coord_t>(19 + 32 * i);
+    const char* keys[] = {"Wi-Fi", "Wi-Fi setup", "Camera setup", "Preview", "Idle backlight"};
+    for (size_t i = 0; i < sizeof keys / sizeof keys[0]; ++i) {
+        const auto y = static_cast<lv_coord_t>(13 + 29 * i);
         label(status, keys[i], lv_font_montserrat_12, kText, 15, y);
         ui.statusValues[i] = label(status, "", lv_font_montserrat_12, kBlue, 122, y, 183, LV_TEXT_ALIGN_RIGHT);
-        if (i != 3) panel(status, 15, y + 22, 290, 1, kSurface);
+        if (i + 1 < sizeof keys / sizeof keys[0]) panel(status, 15, y + 21, 290, 1, kSurface);
     }
-
-    auto* setup = ui.pages[Setup];
-    label(setup, "USB setup", lv_font_montserrat_16, kPeach, 15, 14);
-    label(setup, "1. Connect the USB cable", lv_font_montserrat_12, kText, 15, 44);
-    label(setup, "2. Send your setup JSON", lv_font_montserrat_12, kText, 15, 65);
-    label(setup, "3. Auto-restart; press BOOT", lv_font_montserrat_12, kText, 15, 86);
-    label(setup, "115200 baud | configure while stopped", lv_font_montserrat_12, kMuted, 15, 116);
 
     auto* nav = panel(ui.dashboard, 0, kActionsY, kWidth, kTouchHeight, kCrust);
     const char* names[] = {"Home", "Status", "Setup"};
@@ -218,7 +216,8 @@ void monitor(lv_obj_t* screen) {
     ui.stateDot = panel(top, 10, 10, 6, 6, kYellow);
     lv_obj_set_style_radius(ui.stateDot, LV_RADIUS_CIRCLE, 0);
     ui.mode = label(top, "", lv_font_montserrat_14, kYellow, 22, 5);
-    ui.remaining = label(top, "", lv_font_montserrat_14, kPeach, 185, 5, 125, LV_TEXT_ALIGN_RIGHT);
+    ui.monitorTime = label(top, "", lv_font_montserrat_12, kText, 129, 6, 62, LV_TEXT_ALIGN_CENTER);
+    ui.remaining = label(top, "", lv_font_montserrat_14, kPeach, 195, 5, 115, LV_TEXT_ALIGN_RIGHT);
 
     auto* metadata = panel(ui.monitor, 0, kMetadataY, kWidth, kMetadataHeight, kCrust, LV_OPA_80);
     ui.frame = label(metadata, "", lv_font_montserrat_12, kText, 8, 2, 185);
@@ -240,24 +239,42 @@ void monitor(lv_obj_t* screen) {
     ui.noticeDetail = label(ui.notice, "", lv_font_montserrat_12, kMuted, 10, kErrorTextY, kNoticeTextWidth, LV_TEXT_ALIGN_CENTER);
 }
 
-void showDashboard(const PreviewSnapshot& state) {
+void showTime(lv_obj_t* object, const ClockSnapshot& clock) {
+    copyText(object, clock.valid ? clock.time : "--:--:--");
+    textColor(object, clock.valid && clock.online ? kText : kMuted);
+}
+
+void showDashboard(const PreviewSnapshot& state, const ClockSnapshot& clock) {
     const bool configured = state.configured;
-    const bool online = configured && state.wifi;
+    const bool online = state.wifi;
     literal(ui.wifi, online ? LV_SYMBOL_WIFI "  Wi-Fi" : LV_SYMBOL_WIFI "  Wi-Fi off");
     textColor(ui.wifi, online ? kGreen : kMuted);
-    literal(ui.hero, !configured ? "Setup required" : online ? "Ready" : "Wi-Fi offline");
-    literal(ui.homeDetail, !configured ? "Configure via USB serial" : online ? "Preview is off" : "Waiting for Wi-Fi");
-    literal(ui.hint, configured ? "BOOT to start" : "See Setup");
+    showTime(ui.dashboardTime, clock);
+    if (!state.wifiConfigured) {
+        literal(ui.hero, "Setup required");
+        literal(ui.homeDetail, "Configure Wi-Fi");
+        literal(ui.hint, "Open Setup");
+    } else if (!state.cameraConfigured) {
+        literal(ui.hero, online ? "Wi-Fi online" : "Wi-Fi offline");
+        literal(ui.homeDetail, "Camera not set (optional for time)");
+        literal(ui.hint, "BOOT to wake");
+    } else {
+        literal(ui.hero, online ? "Ready" : "Wi-Fi offline");
+        literal(ui.homeDetail, online ? "Preview is off" : "Waiting for Wi-Fi");
+        literal(ui.hint, "BOOT to start");
+    }
+    visible(ui.sessionLength, configured);
     const bool disabled = lv_obj_has_state(ui.start, LV_STATE_DISABLED);
     if (!configured && !disabled) lv_obj_add_state(ui.start, LV_STATE_DISABLED);
     else if (configured && disabled) lv_obj_clear_state(ui.start, LV_STATE_DISABLED);
     textColor(ui.startText, configured ? kCrust : kMuted);
     textColor(ui.play, configured ? kCrust : kMuted);
 
-    literal(ui.statusValues[0], !configured ? "Not configured" : online ? "Connected" : "Disconnected");
-    literal(ui.statusValues[1], configured ? "Ready" : "Setup required");
-    literal(ui.statusValues[2], "Stopped");
-    literal(ui.statusValues[3], configured ? "Off after 3s" : "Stays on for setup");
+    literal(ui.statusValues[0], online ? "Connected" : "Disconnected");
+    literal(ui.statusValues[1], state.wifiConfigured ? "Saved" : "Not set");
+    literal(ui.statusValues[2], state.cameraConfigured ? "Saved" : "Not set");
+    literal(ui.statusValues[3], "Stopped");
+    literal(ui.statusValues[4], state.wifiConfigured ? "Off after 30s" : "Stays on for setup");
 }
 
 struct Mode {
@@ -279,13 +296,14 @@ Mode previewMode(const PreviewSnapshot& state, bool shown) {
     return {"LIVE", kGreen, nullptr};
 }
 
-void showMonitor(const PreviewSnapshot& state, bool haveImage) {
+void showMonitor(const PreviewSnapshot& state, bool haveImage, const ClockSnapshot& clock) {
     const bool shown = haveImage && ui.picture.data;
     visible(ui.image, shown);
     const auto mode = previewMode(state, shown);
     literal(ui.mode, mode.name);
     textColor(ui.mode, mode.color);
     background(ui.stateDot, mode.color);
+    showTime(ui.monitorTime, clock);
     char text[32];
     const uint32_t seconds = state.remainingMs / 1000 + (state.remainingMs % 1000 != 0);
     std::snprintf(text, sizeof text, "%lus left", static_cast<unsigned long>(seconds));
@@ -336,17 +354,23 @@ void monitorViewBegin(UiActionHandler handler) {
     monitorViewUpdate(PreviewSnapshot{}, false);
 }
 
-void monitorViewUpdate(const PreviewSnapshot& state, bool haveImage) {
+void monitorViewUpdate(const PreviewSnapshot& state, bool haveImage, const ClockSnapshot& clock) {
     if (ui.active && !state.active) selectPage(Home);
     ui.active = state.active;
     ui.configured = state.configured;
-    visible(ui.dashboard, !state.active);
+    visible(ui.dashboard, !state.active && !ui.setup);
     visible(ui.monitor, state.active);
-    if (state.active) showMonitor(state, haveImage);
+    if (state.active) showMonitor(state, haveImage, clock);
     else {
         visible(ui.image, false);
-        showDashboard(state);
+        if (!ui.setup) showDashboard(state, clock);
     }
+}
+
+void monitorViewShowSetup(bool show) {
+    ui.setup = show;
+    if (!show) selectPage(Home);
+    visible(ui.dashboard, !ui.active && !show);
 }
 
 void monitorViewSetFrame(const uint16_t* pixels) {

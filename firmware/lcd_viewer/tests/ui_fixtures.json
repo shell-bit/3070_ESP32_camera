@@ -1,0 +1,20 @@
+{
+  "scenes": [
+    "01-home.png",
+    "02-status.png",
+    "03-setup.png",
+    "04-unconfigured.png",
+    "05-offline.png",
+    "06-waiting-first-frame.png",
+    "07-live.png",
+    "08-paused-event.png",
+    "09-paused-enrollment.png",
+    "10-paused-identity.png",
+    "11-wifi-reconnecting.png",
+    "12-stale.png",
+    "13-camera-error.png",
+    "14-extreme-text.png",
+    "15-new-generation.png",
+    "16-stopped.png"
+  ]
+}

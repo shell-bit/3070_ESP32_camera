@@ -10,6 +10,13 @@ def main():
     if source_hashes(BUILD / 'sketch/lcd_viewer') != sources:
         raise SystemExit('Build staging differs from current source')
     settings = json.loads((BUILD / 'build-settings.json').read_text(encoding='utf-8-sig'))
+    host_path = BUILD / 'host-test-manifest.json'
+    host = json.loads(host_path.read_text(encoding='utf-8'))
+    if host['log_sha256'] != sha(BUILD / 'test-results.log'):
+        raise SystemExit('Host test log changed since verification')
+    if not host['source_sha256'] or any(sha(ROOT / name) != digest
+                                      for name, digest in host['source_sha256'].items()):
+        raise SystemExit('Host test inputs changed since verification')
 
     log = (BUILD / 'compile.log').read_text(encoding='utf-8-sig')
     program = re.search(r'Sketch uses (\d+) bytes .*?Maximum is (\d+) bytes', log)
@@ -31,7 +38,9 @@ def main():
         'fqbn': settings['fqbn'], 'dependencies': {'lvgl': settings['lvgl']},
         'sources': sources, 'artifacts': artifacts, 'hardware_tested': False,
         'verification': {
-            'host_tests': 'passed by build.ps1 before compilation',
+            'host_tests': host['suites'],
+            'host_test_manifest_sha256': sha(host_path),
+            'host_test_log_sha256': host['log_sha256'],
             'firmware_build': 'passed; build.ps1 invokes this only after compile exit code 0',
             'program_bytes': int(program[1]), 'program_capacity': int(program[2]),
             'static_ram_bytes': int(memory[1]), 'static_ram_capacity': int(memory[2]),

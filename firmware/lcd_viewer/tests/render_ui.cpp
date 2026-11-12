@@ -1,4 +1,4 @@
-#include "fakes/native_display.h"
+#include "fakes/setup_ui_backend.h"
 #include "../src/ui/monitor_view.h"
 
 #include <fstream>
@@ -71,6 +71,20 @@ void requireMonitor(const char* status, const char* detail, bool haveImage) {
     CHECK(!native::findButton("Setup"));
 }
 
+void renderSetup(native::Display& display, const std::string& output) {
+    using namespace native::setup;
+    lv_obj_clean(lv_scr_act());
+    setConfigured();
+    lcd::previewUiBegin();
+    update(display);
+    display.tap(native::findButton("Setup"));
+    update(display, 1);
+    CHECK(native::findButton("Back"));
+    screenshot(display, output, "03-setup");
+    pressBoot(display);
+    CHECK(native::findButton("Home"));
+}
+
 }
 
 int main(int argc, char** argv) {
@@ -87,7 +101,7 @@ int main(int argc, char** argv) {
     };
 
     PreviewSnapshot home;
-    home.configured = home.wifi = true;
+    home.configured = home.wifi = home.wifiConfigured = home.cameraConfigured = true;
     show(home, false, "01-home");
     CHECK(native::findLabel("Ready"));
     CHECK(native::findLabel("Preview is off"));
@@ -110,12 +124,12 @@ int main(int argc, char** argv) {
     screenshot(display, output, "02-status");
     display.tap(native::findButton("Setup"));
     CHECK(!native::findButton("Start preview"));
-    CHECK(native::findLabel("115200", false));
-    screenshot(display, output, "03-setup");
+    CHECK(actions == std::vector<UiAction>{UiAction::Setup});
+    actions.clear();
     display.tap(native::findButton("Home"));
     CHECK(actions.empty());
     CHECK(native::findLabel("Ready"));
-    std::puts("PASS Home, Status and Setup navigation and 44px touch targets");
+    std::puts("PASS Home, Status and Setup tab dispatch and 44px touch targets");
 
     PreviewSnapshot unconfigured;
     show(unconfigured, false, "04-unconfigured");
@@ -126,9 +140,6 @@ int main(int argc, char** argv) {
         display.tap(button);
     }
     CHECK(actions.empty());
-    display.tap(native::findButton("Setup"));
-    CHECK(native::findLabel("115200", false));
-    display.tap(native::findButton("Home"));
 
     auto offline = home;
     offline.wifi = false;
@@ -243,4 +254,5 @@ int main(int argc, char** argv) {
     CHECK(!native::frameImage());
     CHECK(!native::findButton("Close"));
     std::puts("PASS generation clear removes the old pixels and Close returns to Home");
+    renderSetup(display, output);
 }

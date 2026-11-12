@@ -4,6 +4,7 @@
 namespace lcd {
 struct PreviewSnapshot {
     bool active=false,configured=false,wifi=false,stale=true;
+    bool wifiConfigured=false,cameraConfigured=false;
     uint32_t generation=0,remainingMs=0,frameAgeMs=0;
     uint64_t sequence=0;
     char state[40]="idle";
