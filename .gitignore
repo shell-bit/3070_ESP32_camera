@@ -1,6 +1,8 @@
-# Track only LCD viewer firmware.
+# Track LCD viewer firmware and the approved AI development documentation.
 /*
 !/.gitignore
+!/AGENTS.md
+!/.agents/
 !/firmware/
 /firmware/*
 !/firmware/lcd_viewer/
@@ -27,3 +29,18 @@ setup.json
 
 # This test depends on workspace delivery tools.
 /firmware/lcd_viewer/tests/test_delivery_tools.py
+AGENTS.md
+.agents/ARCHITECTURE.md
+.agents/CHANGELOG.md
+.agents/CODING_STANDARDS.md
+.agents/DECISIONS.md
+.agents/HARDWARE.md
+.agents/PROJECT.md
+.agents/README.md
+.agents/TESTING.md
+.agents/skills/README.md
+.agents/plans/TEMPLATE.md
+.agents/plans/2026-11-11-agent-initialization.md
+.agents/context/KNOWN_ISSUES.md
+.agents/context/CURRENT_STATE.md
+.agents/WORKFLOW.md
