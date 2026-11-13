@@ -1,6 +1,23 @@
 # Track LCD firmware and explicitly reviewed camera/server source files.
 /*
 !/.gitignore
+
+# Bilingual project guide and its reviewed architecture assets.
+!/README.md
+!/README.zh-CN.md
+!/esp32-lcd-overall-en.html
+!/esp32-lcd-overall-zh.html
+!/lcd-capture-workflow-en.html
+!/lcd-capture-workflow-zh.html
+!/docs/
+/docs/*
+!/docs/architecture/
+/docs/architecture/*
+!/docs/architecture/esp32-lcd-overall-en.png
+!/docs/architecture/esp32-lcd-overall-zh.png
+!/docs/architecture/lcd-capture-workflow-en.png
+!/docs/architecture/lcd-capture-workflow-zh.png
+
 !/firmware/
 /firmware/*
 !/firmware/lcd_viewer/
