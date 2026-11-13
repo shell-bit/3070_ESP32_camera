@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>家庭成员 | Sentinel</title>
+  <link rel="stylesheet" href="/auth.css">
+  <script src="/auth.js" defer></script><script src="/members.js" defer></script>
+  <style>
+    .member-heading{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap}
+    .member-heading h2{margin:0}.member-state{border:1px solid #738091;border-radius:1rem;padding:.25rem .7rem;font-size:.85rem}
+    .member-active{color:#276b43;border-color:#43875d}.member-actions{margin-top:1rem}.member-card{margin-top:1rem}
+    .member-card form{display:flex;align-items:end;gap:.75rem;flex-wrap:wrap}.member-card label{flex:1;min-width:12rem}
+    .member-card form button{margin-bottom:0}.member-intro{line-height:1.7}.mode-note{border-left:3px solid #68829e;padding-left:1rem}
+    #member-device{width:100%;padding:.65rem;border-radius:.5rem}#members-message{min-height:1.5rem}
+  </style>
+</head>
+<body class="auth-page">
+  <header class="account-header"><a href="/">← 我的看板</a><nav class="auth-nav"><span id="auth-user"></span><a href="/account">账户</a><button type="button" id="logout">退出登录</button></nav></header>
+  <main class="account-shell">
+    <h1>家庭成员</h1>
+    <p class="auth-muted member-intro">为自己的相机登记家庭成员。每台相机需要单独采样；相机确认保存后，登记才会生效。</p>
+    <p id="identity-mode" class="mode-note">正在读取身份模式；登记完成不代表已开启报警豁免。</p>
+    <section class="auth-card">
+      <h2>选择相机</h2>
+      <label for="member-device">当前相机</label><select id="member-device" disabled></select>
+      <p id="device-help" class="auth-muted">正在读取已分配的相机…</p>
+      <p class="auth-muted auth-small">登记任务有效期为 120 秒。离线相机不会立即开始；正在采样时请仅让一人面对镜头，按相机提示变化角度。PIR 事件可能中断采样。</p>
+    </section>
+    <section class="auth-card">
+      <h2>添加成员</h2>
+      <form id="member-create"><label>显示名称<input name="display_name" maxlength="80" required autocomplete="off"></label><button class="auth-primary" type="submit">添加成员</button></form>
+      <p class="auth-muted auth-small">登记原始图像不长期保存在云端。停用或删除会立即撤销云端授权，相机特征将在联网处理清理命令后移除。</p>
+    </section>
+    <p id="members-message" class="auth-message" role="status" aria-live="polite"></p>
+    <section id="member-list" aria-label="当前相机的成员登记状态"></section>
+    <section aria-labelledby="family-events-heading">
+      <h2 id="family-events-heading">家庭成员豁免记录</h2>
+      <p class="auth-muted">这些决定标为 exempted，保留原始行为结论。照片仅在点击链接后打开；删除私有照片不会把事件改为正常，现有事件音频会保留。</p>
+      <p id="family-events-message" class="auth-message" role="status"></p>
+      <div id="family-events"></div>
+    </section>
+  </main>
+</body>
+</html>

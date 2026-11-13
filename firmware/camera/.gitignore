@@ -1,0 +1,11 @@
+main/project_local.h
+build*/
+tools/arduino-cli*
+tools/LICENSE.txt
+tools/format-runtime/
+managed_components/
+sdkconfig
+sdkconfig.old
+tests/*.exe
+build-manifest.json
+vendor/esp-dl-models/

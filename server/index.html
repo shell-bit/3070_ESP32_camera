@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>My activity | Sentinel</title>
+<style>
+:root{color-scheme:light;--ink:#172b3a;--muted:#657887;--line:#dce5eb;--blue:#245d85}*{box-sizing:border-box}body{margin:0;background:#f3f6f8;color:var(--ink);font:16px/1.55 system-ui,-apple-system,'Segoe UI',sans-serif}header{background:#112b3b;color:white}header>div{max-width:1200px;margin:auto;padding:23px 28px;display:flex;justify-content:space-between;align-items:center;gap:20px}.brand{font-size:18px;font-weight:650;letter-spacing:.02em}.connection{font-size:13px;color:#c4d5df}main{max-width:1200px;margin:auto;padding:38px 28px 60px}h1{font-size:32px;letter-spacing:-.04em;margin:0 0 7px}h2{font-size:20px;margin:0}p{margin:0}.intro{color:var(--muted);margin-bottom:28px}.overview{display:grid;grid-template-columns:1.2fr 1fr;gap:22px}.panel{background:white;border:1px solid var(--line);border-radius:16px;overflow:hidden}.assessment{padding:28px}.eyebrow{font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}.badge{display:inline-block;margin:17px 0;background:#eef2f5;color:#506372;border-radius:30px;padding:7px 13px;font-size:14px;font-weight:650}.badge.alert{color:#a32f26;background:#fff0ed}.badge.clear{color:#16624a;background:#e8f6ee}.badge.pending{color:#805d12;background:#fff6df}#verdict{font-size:27px;line-height:1.25;letter-spacing:-.025em;margin-bottom:18px}.description{white-space:pre-wrap;overflow-wrap:anywhere;color:#445b6b;min-height:72px}.metadata{border-top:1px solid var(--line);padding-top:20px;margin-top:25px;display:grid;grid-template-columns:1fr 1fr;gap:20px}.metadata dt{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.06em}.metadata dd{margin:5px 0 0;font-size:14px}figure{margin:0}.preview{background:#e8eef2;min-height:300px;display:grid;place-items:center;color:var(--muted);padding:18px;text-align:center}.preview img{width:100%;max-height:370px;object-fit:contain}.preview-caption{padding:16px 20px;font-size:13px;color:var(--muted)}.gallery-section{margin-top:32px}.section-head{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:16px}.section-head p{font-size:14px;color:var(--muted);margin-top:4px}button,.link{font:inherit;cursor:pointer;border:1px solid var(--line);background:white;color:var(--blue);padding:9px 15px;border-radius:9px;text-decoration:none}button:hover,.link:hover{background:#edf4f8}button:disabled{opacity:.5;cursor:wait}.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:18px}.photo{background:white;border:1px solid var(--line);border-radius:12px;overflow:hidden}.photo button{display:block;width:100%;padding:0;border:0;border-radius:0;background:#e8eef2}.photo img{width:100%;height:180px;display:block;object-fit:contain}.photo-info{padding:15px}.photo time{font-size:14px;display:block;margin-bottom:10px}.photo a{font-size:13px;color:var(--blue)}.empty{padding:40px;text-align:center;background:white;border:1px dashed #c2d0da;border-radius:12px;grid-column:1/-1;color:var(--muted)}.notice{font-size:13px;color:var(--muted);margin-top:16px}#gallery-error{color:#a32f26;margin-bottom:12px}dialog{border:0;border-radius:14px;padding:20px;width:min(1000px,94vw);max-height:92vh;color:var(--ink)}dialog::backdrop{background:#071827b8}dialog img{display:block;max-width:100%;max-height:70vh;margin:15px auto;object-fit:contain}.modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.modal-head p{overflow-wrap:anywhere;font-size:14px}:focus-visible{outline:3px solid #3987b9;outline-offset:4px}[hidden]{display:none!important}@media(max-width:760px){header>div{padding:18px 20px;align-items:flex-start;flex-direction:column;gap:4px}main{padding:28px 18px}.overview{grid-template-columns:1fr}.assessment{padding:22px}.preview{min-height:200px}h1{font-size:28px}.metadata{grid-template-columns:1fr}.section-head{align-items:flex-start}}
+.history-section{margin-top:32px}.history-controls{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px}.history-controls label{font-size:13px;color:var(--muted);display:grid;gap:5px}.history-controls input{font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:white;color:var(--ink)}.history-list{max-height:480px;overflow:auto;display:grid;gap:12px}.event{display:grid;grid-template-columns:180px 1fr auto;gap:18px;align-items:start;background:white;border:1px solid var(--line);border-left:4px solid #c15445;border-radius:10px;padding:20px}.event time{font-size:14px;font-weight:600}.event p{white-space:pre-wrap;overflow-wrap:anywhere}.event small{display:block;color:var(--muted);margin-top:5px}.history-foot{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-top:12px}@media(max-width:760px){.event{grid-template-columns:1fr;gap:10px}.history-controls input{max-width:100%}.history-foot{align-items:flex-start;flex-direction:column}}
+.activity-type{color:#a32f26;font-size:14px;font-weight:650;margin-bottom:10px}
+.frame-strip{display:flex;gap:8px;flex-wrap:wrap;padding:12px 18px}.frame-strip:empty{display:none}.frame-button{font-size:13px;padding:7px 10px}.frame-button[aria-pressed="true"]{background:#e7f1f8;border-color:var(--blue);color:var(--ink)}.frame-summary{font-size:13px;color:var(--muted);margin-top:8px}.review-frames{display:grid;gap:12px}.review-frame{margin:0;padding-bottom:12px;border-bottom:1px solid var(--line)}.review-frame figcaption{font-size:13px;color:var(--muted);margin:6px 0}.review-frame a{font-size:13px;color:var(--blue)}
+.review-card{padding:20px;background:white;border:1px solid var(--line);border-radius:12px;display:grid;gap:12px}.review-card img{width:100%;max-height:330px;object-fit:contain;background:#e8eef2}.review-reason{white-space:pre-wrap;overflow-wrap:anywhere;color:#805d12}.review-card textarea{display:block;width:100%;font:inherit;padding:10px;border:1px solid var(--line);border-radius:8px}.review-actions{display:flex;gap:10px;flex-wrap:wrap}#review-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:18px}#review-key{font:inherit;padding:10px;max-width:100%}
+
+.review-bulk{position:sticky;top:12px;z-index:2;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 16px;margin-bottom:18px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 3px 12px #172b3a12}.review-select{display:flex;align-items:center;gap:9px;font-size:14px;cursor:pointer}.review-select input{width:18px;height:18px;accent-color:var(--blue);cursor:pointer}.review-bulk .notice{flex-basis:100%;margin:0}.review-bulk button{color:#a32f26;border-color:#e9c3bd}.review-bulk button:hover{background:#fff0ed}.review-bulk button:disabled{cursor:default}.review-card:has(.review-select input:checked){border-color:var(--blue);box-shadow:0 0 0 1px var(--blue)}
+</style>
+<link rel="stylesheet" href="/auth.css"><script src="/auth.js"></script>
+</head>
+<body>
+<header><div><span class="brand">My security dashboard</span><span class="connection" id="connection" role="status">Connecting to server…</span><nav class="auth-nav"><span id="auth-user"></span><a href="/members">Family members</a><a href="/account">Account</a><button id="logout" type="button">Sign out</button></nav></div></header>
+<main>
+<h1>My activity</h1><p class="intro">Review your flagged activity and retained photos. Event times show when the server received the photo.</p><p class="notice" id="pipeline-state" role="status">Checking analysis queue…</p>
+<section class="overview" aria-label="Latest activity">
+<article class="panel assessment"><p class="eyebrow">Latest assessment</p><div id="assessment" aria-live="polite"><span class="badge" id="badge">Waiting</span><h2 id="verdict">Waiting for a photo</h2><p class="activity-type" id="activity-type" hidden></p><p class="description" id="description">Captured photos and activity reports will appear here automatically.</p></div>
+<dl class="metadata"><div><dt id="time-label">Report time</dt><dd><time id="report-time">—</time></dd></div><div><dt>Latest photo received</dt><dd><time id="received-time">—</time></dd></div></dl>
+<p class="notice" id="assessment-note">An upload confirmation is not an AI assessment.</p></article>
+<figure class="panel"><div class="preview" id="preview">No photo available yet.</div><div class="frame-strip" id="latest-frames" aria-label="Latest event photos"></div><figcaption class="preview-caption" id="preview-caption">Latest captured photo</figcaption></figure>
+</section>
+<section class="history-section" id="review-section" hidden aria-labelledby="review-heading"><div class="section-head"><div><h2 id="review-heading">Manual review</h2><p>Photos the AI could not assess. Review the image before deciding.</p></div><span id="review-count"></span></div><div class="history-controls"><label hidden>Review access key (if configured)<input type="password" id="review-key" autocomplete="off"></label><button id="review-refresh" type="button">Load / refresh</button></div><p id="review-message" role="status" class="notice"></p><div id="review-list"><p class="empty">Loading review photos…</p></div></section>
+<section class="history-section" aria-labelledby="history-heading"><div class="section-head"><div><h2 id="history-heading">Suspicious activity history</h2><p>Detection times, descriptions and related photos.</p></div><span id="history-count"></span></div><div class="history-controls"><label>Search description<input id="history-search" type="search" placeholder="Search activity…"></label><label>From date<input id="history-from" type="date"></label><label>To date<input id="history-to" type="date"></label><button type="button" id="history-reset">Reset filters</button></div><div id="history-list" class="history-list" tabindex="0" aria-label="Suspicious activity records"></div><div class="history-foot"><p class="notice" id="history-note" role="status">Loading activity history…</p><button id="history-more" type="button" hidden>Load older records</button></div></section>
+<section class="gallery-section" aria-labelledby="gallery-heading"><div class="section-head"><div><h2 id="gallery-heading">Photo gallery <span id="count"></span></h2><p>Choose a photo to view it at full size.</p></div><button id="refresh" type="button">Refresh</button></div><p id="gallery-error" role="status"></p><div class="gallery" id="gallery"><p class="empty">Loading photos…</p></div></section>
+<p class="notice">Updates every 3 seconds. Times are shown in your browser’s local time zone. An AI assessment may require manual review.</p>
+</main>
+<dialog id="viewer" aria-labelledby="viewer-title"><div class="modal-head"><p id="viewer-title">Camera photo</p><button id="close-viewer" type="button">Close</button></div><div class="frame-strip" id="viewer-frames" aria-label="Event photos"></div><img id="viewer-image" alt="Full-size camera capture"><a id="viewer-download" class="link">Download photo</a></dialog>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+function formatTime(value){if(!value)return '—';const d=new Date(value);return Number.isNaN(d.getTime())?'—':d.toLocaleString();}
+function setTime(id,value){$(id).textContent=formatTime(value);if(value&&formatTime(value)!=='—')$(id).dateTime=new Date(value).toISOString();else $(id).removeAttribute('datetime');}
+// Only accept photo URLs from this same server, never arbitrary remote URLs.
+function photoUrl(value){if(typeof value!=='string'||!value)return null;try{const u=new URL(value,location.href);return u.origin===location.origin&&!u.username&&!u.password&&u.pathname.startsWith('/photos/')?u.href:null;}catch{return null;}}
+function eventFrames(data){
+  const frames=[],seen=new Set();
+  if(Array.isArray(data.frames))for(const frame of data.frames){
+    if(!frame||!Number.isInteger(frame.photo_index)||frame.photo_index<1||frame.photo_index>5||seen.has(frame.photo_index))continue;
+    const url=photoUrl(frame.photo_url);if(!url)continue;seen.add(frame.photo_index);
+    frames.push({id:String(frame.id||''),photo_index:frame.photo_index,photo_url:url,captured_at:frame.captured_at||null,received_at:frame.received_at||null});
+  }
+  if(!frames.length&&photoUrl(data.photo_url))frames.push({id:String(data.id||''),photo_index:1,photo_url:photoUrl(data.photo_url),captured_at:null,received_at:data.detected_at||data.timestamp||null});
+  return frames.sort((a,b)=>a.photo_index-b.photo_index);
+}
+function frameSummary(data,frames){const expected=Number.isInteger(data.expected_frames)&&data.expected_frames>=1&&data.expected_frames<=5?data.expected_frames:frames.length;const missing=Array.isArray(data.missing_indices)?data.missing_indices.filter(n=>Number.isInteger(n)&&n>=1&&n<=expected):[];return frames.length+' / '+expected+' photos'+(missing.length?' · Missing: '+missing.join(', '):'');}
+function frameCaption(frame){return 'Photo '+frame.photo_index+(frame.captured_at?' · Captured '+formatTime(frame.captured_at):'')+(frame.received_at?' · Received '+formatTime(frame.received_at):'');}
+function frameButtons(container,frames,data,select,selected){container.replaceChildren();for(const frame of frames){const button=document.createElement('button');button.type='button';button.className='frame-button';button.setAttribute('data-frame-index',frame.photo_index);button.setAttribute('aria-pressed',String(frame.photo_index===selected));button.textContent='Photo '+frame.photo_index+(Array.isArray(data.evidence_frame_indices)&&data.evidence_frame_indices.includes(frame.photo_index)?' · Evidence':'');button.addEventListener('click',()=>{for(const child of container.children)child.setAttribute('aria-pressed',String(child===button));select(frame);});container.append(button);}}
+async function request(path){const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),8000);try{const r=await fetch(path,{signal:controller.signal,cache:'no-store'});if(!r.ok){const e=Error('HTTP '+r.status);e.status=r.status;throw e;}return await r.json();}finally{clearTimeout(timer);}}
+const HISTORY_KEY='surveillance-alert-history-v1';
+const ACTIVITY_LABELS={forced_entry:'Forced Entry',suspected_theft:'Suspected Theft',violence:'Violence',suspicious:'Suspicious'};
+function normaliseActivityType(value){return ['forced_entry','suspected_theft','violence'].includes(value)?value:'suspicious';}
+function activityLabel(value){return ACTIVITY_LABELS[normaliseActivityType(value)];}
+let events=new Map(),historyMode='loading',historyCursor=null,historyBusy=false,historySignature='';
+function normaliseEvent(data){
+  if(!data||typeof data!=='object')return null;
+  const a=data.analysis&&typeof data.analysis==='object'?data.analysis:{};
+  const outcome=String(data.analysis_status||a.analysis_status||'').toLowerCase();
+  if(['failed','unavailable','not_configured','pending','processing'].includes(outcome))return null;
+  const status=String(data.status||a.status||'').toLowerCase();
+  const suspicious=typeof data.suspicious==='boolean'?data.suspicious:a.suspicious;
+  if(suspicious!==true&&!['suspicious','dangerous','alert'].includes(status))return null;
+  const time=data.detected_at||a.detected_at||data.timestamp;
+  const description=String(data.description||a.description||a.summary||(typeof data.analysis==='string'?data.analysis:'')||data.summary||'No description provided.');
+  const photo=photoUrl(data.photo_url);
+  const id=String(data.id||data.report_id||[data.device_id||'',data.event_id||data.photo_name||photo||'',time||'',description].join('|'));
+  return {id,status:'suspicious',activity_type:normaliseActivityType(data.activity_type??a.activity_type),detected_at:time||null,description,photo_url:photo,review_source:data.review_source,event_id:data.event_id,frames:eventFrames(data),expected_frames:data.expected_frames,frame_count:data.frame_count,input_complete:data.input_complete,missing_indices:data.missing_indices,evidence_frame_indices:data.evidence_frame_indices};
+}
+try{const saved=JSON.parse(localStorage.getItem(HISTORY_KEY)||'[]');if(Array.isArray(saved))for(const item of saved){const e=normaliseEvent(item);if(e)events.set(e.id,e);}}catch{}
+function rememberReport(data){const e=normaliseEvent(data);if(!e||historyMode==='server')return;events.set(e.id,e);try{localStorage.setItem(HISTORY_KEY,JSON.stringify([...events.values()]));}catch{$('history-note').textContent='Browser storage unavailable/full. New records will last only for this page session.';}renderHistory();}
+function renderHistory(){
+  const search=$('history-search').value.trim().toLowerCase(),from=$('history-from').value,to=$('history-to').value;
+  const records=[...events.values()].sort((a,b)=>(Date.parse(b.detected_at)||0)-(Date.parse(a.detected_at)||0)).filter(e=>{
+    if(!e.description.toLowerCase().includes(search))return false;
+    const d=new Date(e.detected_at);const date=e.detected_at&&!Number.isNaN(d.getTime())?[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-'):'';
+    return (!from||(date&&date>=from))&&(!to||(date&&date<=to));
+  });
+  const sig=JSON.stringify([records,search,from,to]);if(sig===historySignature)return;historySignature=sig;
+  $('history-count').textContent=records.length+' shown / '+events.size+' loaded';$('history-list').replaceChildren();
+  if(!records.length){const p=document.createElement('p');p.className='empty';p.textContent=events.size?'No records match these filters.':'No suspicious activity records available. Upload confirmations are not detection results.';$('history-list').append(p);}
+  for(const e of records){
+    const row=document.createElement('article');row.className='event';
+    const stamp=document.createElement('div'),time=document.createElement('time');time.textContent=e.detected_at?formatTime(e.detected_at):'Time not supplied';if(formatTime(e.detected_at)!=='—')time.dateTime=new Date(e.detected_at).toISOString();
+    const label=document.createElement('small');label.textContent=e.review_source==='human'?'Human-reviewed alert':'AI flagged for review';stamp.append(time,label);
+    const details=document.createElement('div'),activity=document.createElement('p'),desc=document.createElement('p');activity.className='activity-type';activity.textContent=activityLabel(e.activity_type);desc.textContent=e.description;details.append(activity,desc);row.append(stamp,details);
+    if(e.frames.length){const group=document.createElement('div'),view=document.createElement('button'),summary=document.createElement('p');view.type='button';view.textContent=e.frames.length>1?'View photos ('+e.frames.length+')':'View photo';view.addEventListener('click',()=>openEventPhotos(e));summary.className='frame-summary';summary.textContent=frameSummary(e,e.frames);group.append(view,summary);row.append(group);}
+    $('history-list').append(row);
+  }
+}
+async function loadHistory(older=false){
+  if(historyBusy)return;historyBusy=true;$('history-more').disabled=true;
+  try{const result=await request('/api/analysis/history?limit=100'+(older&&historyCursor?'&before='+encodeURIComponent(historyCursor):''));
+    if(!Array.isArray(result.items))throw Error('Invalid history response');
+    if(historyMode!=='server')events.clear();historyMode='server';
+    for(const item of result.items){const e=normaliseEvent(item);if(e)events.set(e.id,e);}
+    if(older||historyCursor===null)historyCursor=result.next_cursor||null;
+    $('history-more').hidden=!historyCursor;
+    $('history-note').textContent='Saved server history. Filters apply to loaded records; load older records to search further back.';
+  }catch(e){if(e.status===404){historyMode='browser';$('history-more').hidden=true;$('history-note').textContent='This browser only: records observed while this dashboard is open. Earlier or missed events require server-side history.';}else{$('history-note').textContent='History server unavailable. Previously loaded records remain visible.';}}
+  finally{historyBusy=false;$('history-more').disabled=false;renderHistory();}
+}
+let previewKey='',previewGroupKey='',previewIndex=null,galleryKey='',running=false;
+function showPreview(photo,caption){const url=photoUrl(photo?.url);if(!url)return;if(previewKey!==url){const img=document.createElement('img');img.src=url;img.alt='Latest camera capture';$('preview').replaceChildren(img);previewKey=url;}$('preview-caption').textContent=caption;}
+function showEventPreview(data){const frames=eventFrames(data);if(!frames.length)return false;const key=JSON.stringify([data.id,frames,data.evidence_frame_indices,data.expected_frames,data.missing_indices]);if(key!==previewGroupKey){previewGroupKey=key;previewIndex=null;}const selected=frames.find(frame=>frame.photo_index===previewIndex)||frames.find(frame=>frame.photo_url===photoUrl(data.photo_url))||frames[0];const choose=frame=>{previewIndex=frame.photo_index;showPreview({url:frame.photo_url},frameSummary(data,frames)+' · '+frameCaption(frame));};frameButtons($('latest-frames'),frames,data,choose,selected.photo_index);choose(selected);return true;}
+function openPhoto(photo){const url=photoUrl(photo.url);if(!url)return;$('viewer-frames').replaceChildren();$('viewer-image').src=url;$('viewer-title').textContent='Captured '+formatTime(photo.captured_at);$('viewer-download').href=photoUrl(photo.download_url)||url;$('viewer').showModal();}
+function openEventPhotos(data){const frames=eventFrames(data);if(!frames.length)return;const choose=frame=>{$('viewer-image').src=frame.photo_url;$('viewer-image').alt='Event photo '+frame.photo_index;$('viewer-download').href=frame.photo_url;$('viewer-title').textContent=frameSummary(data,frames)+' · '+frameCaption(frame);};frameButtons($('viewer-frames'),frames,data,choose,frames[0].photo_index);choose(frames[0]);$('viewer').showModal();}
+function renderGallery(photos){if(!Array.isArray(photos))throw Error('Invalid gallery response');const key=JSON.stringify(photos);if(key===galleryKey)return;galleryKey=key;$('gallery').replaceChildren();$('count').textContent='('+photos.length+')';if(!photos.length){const empty=document.createElement('p');empty.className='empty';empty.textContent='No photos yet. Waiting for a camera upload.';$('gallery').append(empty);return;}for(const photo of photos){const url=photoUrl(photo.url);if(!url)continue;const card=document.createElement('article');card.className='photo';const button=document.createElement('button');button.type='button';button.setAttribute('aria-label','View photo from '+formatTime(photo.captured_at));button.addEventListener('click',()=>openPhoto(photo));const img=document.createElement('img');img.src=url;img.alt='Camera capture';img.loading='lazy';button.append(img);const info=document.createElement('div');info.className='photo-info';const time=document.createElement('time');time.textContent=formatTime(photo.captured_at);if(formatTime(photo.captured_at)!=='—')time.dateTime=new Date(photo.captured_at).toISOString();const download=document.createElement('a');download.href=photoUrl(photo.download_url)||url;download.textContent='Download photo';info.append(time,download);card.append(button,info);$('gallery').append(card);}}
+function renderAssessment(data){
+  const nested=data.analysis&&typeof data.analysis==='object'?data.analysis:{};
+  const state=String(data.status||nested.status||'').toLowerCase();
+  const outcome=String(data.analysis_status||nested.analysis_status||'').toLowerCase();
+  const flag=typeof data.suspicious==='boolean'?data.suspicious:nested.suspicious;
+  let kind='',badge='Not analysed',title='No AI verdict available',note='Photo received. Activity detection has not provided a verdict.';
+  if(['failed','unavailable','not_configured'].includes(outcome)){badge='Unavailable';title='Activity assessment unavailable';note='Review the photo manually. No safety conclusion is available.';}
+  else if(['pending','processing'].includes(outcome)){kind='pending';badge='Analysing';title='Assessment in progress';note='Waiting for the activity report.';}
+  else if(flag===true||['suspicious','dangerous','alert'].includes(state)){kind='alert';badge='Review required';title='Potentially suspicious activity';note='Review the description and photo to confirm the event.';}
+  else if(state==='uncertain'){kind='pending';badge='Uncertain';title='Manual review needed';note='The assessment could not reach a clear conclusion.';}
+  else if(flag===false||['normal','clear','safe'].includes(state)){kind='clear';badge='No alert reported';title='No suspicious activity reported';note='This is the latest model assessment, not a guarantee of safety.';}
+  else if(!data.photo_name&&!data.photo_url&&!data.timestamp){badge='Waiting';title='Waiting for a photo';note='An upload confirmation is not an AI assessment.';}
+  const description=data.description||nested.description||nested.summary||(typeof data.analysis==='string'?data.analysis:'')||data.summary||'No activity description is available yet.';
+  if(data.review_source==='human'){badge='Human-reviewed alert';note='Manually classified by a reviewer, not an AI verdict.';}
+  $('badge').className='badge '+kind;$('badge').textContent=badge;$('verdict').textContent=title;$('description').textContent=String(description);$('assessment-note').textContent=note;
+  $('activity-type').hidden=kind!=='alert';$('activity-type').textContent=kind==='alert'?activityLabel(data.activity_type??nested.activity_type):'';
+  $('time-label').textContent=kind?'Assessment time':'Report time';setTime('report-time',data.detected_at||nested.detected_at||data.timestamp);
+}
+async function pipelineStatus(){try{const data=await request('/api/health');const grouped=data.events&&typeof data.events==='object'&&!Array.isArray(data.events),j=grouped?data.events:(data.jobs||{});$('pipeline-state').textContent=(grouped?'Events · Collecting: '+(j.collecting||0)+' · ':'')+'Waiting: '+(j.queued||0)+' · Processing: '+(j.processing||0)+' · Flagged: '+(j.suspicious||0)+' · Deleted after filtering: '+(j.discarded||0)+' · Needs manual review: '+(j.review||0)+(data.inference_mode==='cpu_review'?' · CPU mode: manual review, AI inference unavailable':'');}catch{$('pipeline-state').textContent='Analysis queue status unavailable.';}}
+async function poll(){if(running)return;running=true;$('refresh').disabled=true;try{
+  const results=await Promise.allSettled([request('/api/analysis/latest'),request('/api/photos'),request('/api/device/status')]);
+  const [report,photos,device]=results;
+  if(report.status==='fulfilled'){renderAssessment(report.value);rememberReport(report.value);}else{$('badge').className='badge pending';$('badge').textContent='Unavailable';$('verdict').textContent='Cannot refresh assessment';$('activity-type').hidden=true;$('activity-type').textContent='';$('assessment-note').textContent='Any description and time shown are from the last successful update.';}
+  if(photos.status==='fulfilled'){try{renderGallery(photos.value);$('gallery-error').textContent='';}catch(e){$('gallery-error').textContent='Could not load gallery: '+e.message;}}else $('gallery-error').textContent='Gallery unavailable. Previously loaded photos are retained.';
+  if(device.status==='fulfilled')setTime('received-time',device.value.last_received);
+  const p=report.status==='fulfilled'?report.value:null;
+  if(p&&eventFrames(p).length)showEventPreview(p);
+  else if(photos.status==='fulfilled'&&Array.isArray(photos.value)&&photos.value.length){$('latest-frames').replaceChildren();previewGroupKey='';showPreview(photos.value[0],'Latest photo · '+formatTime(photos.value[0].captured_at));}
+  $('connection').textContent=results.every(r=>r.status==='fulfilled')?'Updated '+new Date().toLocaleTimeString():'Some updates unavailable · retrying';
+}finally{running=false;$('refresh').disabled=false;}}
+$('refresh').addEventListener('click',()=>{poll();loadHistory();});$('close-viewer').addEventListener('click',()=>$('viewer').close());
+for(const id of ['history-search','history-from','history-to'])$(id).addEventListener('input',renderHistory);
+$('history-reset').addEventListener('click',()=>{for(const id of ['history-search','history-from','history-to'])$(id).value='';renderHistory();});
+$('history-more').addEventListener('click',()=>loadHistory(true));
+async function openNotificationReport(){
+ const id=new URLSearchParams(location.search).get('report');if(!id||!/^[a-f0-9]{64}$/.test(id))return;
+ const section=document.createElement('section');section.className='panel';section.setAttribute('aria-live','polite');
+ const title=document.createElement('h2');title.textContent='Selected activity report';section.append(title);
+ const text=document.createElement('p');text.textContent='Loading report…';section.append(text);
+ document.querySelector('.assessment').before(section);
+ try{const report=await request('/api/analysis/report/'+id);text.textContent=String(report.description||'Activity requires review.');
+ const time=document.createElement('p');time.textContent=formatTime(report.timestamp);section.append(time);
+ const frames=eventFrames(report);if(frames.length){const button=document.createElement('button');button.textContent=frames.length>1?'View report photos ('+frames.length+')':'View report photo';button.onclick=()=>openEventPhotos(report);section.append(button);}
+ }catch{text.textContent='This report is unavailable for your account. Sign in with the account that received the alert.';}
+ section.scrollIntoView({block:'start'});
+}
+renderHistory();loadHistory();poll();pipelineStatus();openNotificationReport();setInterval(poll,3000);setInterval(pipelineStatus,5000);setInterval(()=>loadHistory(),15000);
+</script>
+<script src="/review.js?v=event-groups-1"></script>
+<script src="/audio.js?v=1"></script>
+</body></html>
