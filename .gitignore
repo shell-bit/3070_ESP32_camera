@@ -18,6 +18,30 @@
 !/docs/architecture/lcd-capture-workflow-en.png
 !/docs/architecture/lcd-capture-workflow-zh.png
 
+# Readable light-theme architecture diagrams and vector previews.
+!/docs/architecture/overview-en.html
+!/docs/architecture/overview-en.svg
+!/docs/architecture/overview-zh.html
+!/docs/architecture/overview-zh.svg
+!/docs/architecture/preview-en.html
+!/docs/architecture/preview-en.svg
+!/docs/architecture/preview-zh.html
+!/docs/architecture/preview-zh.svg
+!/docs/architecture/capture-en.html
+!/docs/architecture/capture-en.svg
+!/docs/architecture/capture-zh.html
+!/docs/architecture/capture-zh.svg
+!/docs/architecture/processing-en.html
+!/docs/architecture/processing-en.svg
+!/docs/architecture/processing-zh.html
+!/docs/architecture/processing-zh.svg
+
+# Unified architecture used by both project guides.
+!/docs/architecture/system-en.html
+!/docs/architecture/system-en.svg
+!/docs/architecture/system-zh.html
+!/docs/architecture/system-zh.svg
+
 !/firmware/
 /firmware/*
 !/firmware/lcd_viewer/

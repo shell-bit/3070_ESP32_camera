@@ -56,36 +56,19 @@
 
 ## 项目架构
 
-### 整体架构
+下图将摄像头、LCD、服务器和浏览器整合在同一张架构图中，展示实时预览、事件采集、服务器处理和报警反馈的完整链路。
 
-下面的架构图直接从根目录已有的 HTML 文件导出，保留原图配色、布局和视觉样式。**图中保留了早期设计快照：** `NEW`、`ADAPT`、`Planned` 和“尚未实现”等标注反映当时状态。目前预览会话、摄像头统一资源管理和 LCD 已有实现，当前代码行为以下方表格和文字说明为准；原图中的性能数字属于设计目标。
+[交互 HTML](docs/architecture/system-zh.html) · [查看原尺寸 SVG](docs/architecture/system-zh.svg)
 
-[中文 HTML](esp32-lcd-overall-zh.html) · [English HTML](esp32-lcd-overall-en.html) · [查看高清原图](docs/architecture/esp32-lcd-overall-zh.png)
+[![ESP32 监控系统完整架构图](docs/architecture/system-zh.svg)](docs/architecture/system-zh.svg)
 
-![保留原 HTML 样式的整体架构图](docs/architecture/esp32-lcd-overall-zh.png)
+[LCD 查看器](firmware/lcd_viewer/README.md)通过摄像头的 80 端口建立认证会话，再从 81 端口直接接收 MJPEG。两条连接均在可信局域网内通过 HTTP 携带配对 token，服务器不承担实时视频中转。摄像头同一时间只接受一个查看会话，租约为 30 秒，LCD 每 10 秒续期。
 
-| 层次 | 主要源码 | 职责 |
-| --- | --- | --- |
-| 摄像头固件 | [firmware/camera](firmware/camera/README.md) | `main/main.cpp` 初始化设备；资源管理器统一持有摄像头，其他模块负责采集、预览、音频、上传、身份识别和结果轮询。 |
-| LCD 固件 | [firmware/lcd_viewer](firmware/lcd_viewer/README.md) | `lcd_viewer.ino` 组合板级驱动、LVGL 界面、配置保存、时钟与预览网络逻辑。 |
-| Web 应用 | [server/main.py](server/main.py) | FastAPI 接口、设备认证、用户会话、按归属隔离的数据访问、后台页面和上传入口。 |
-| 存储与事件队列 | [server/store.py](server/store.py)、[server/event_queue.py](server/event_queue.py) | 以文件保存媒体，以 SQLite 保存元数据、照片聚合状态、队列和处理结果；无需 Redis 或 Celery。 |
-| 分析与策略 | [server/worker.py](server/worker.py)、[server/alarm_policy.py](server/alarm_policy.py) | 人工复核分流或模型推理、人物关联和事件级决策。 |
-| 成员生命周期 | [server/member_api.py](server/member_api.py)、[server/device_commands.py](server/device_commands.py) | 家人登记/撤销请求、由摄像头轮询的设备命令，以及持久化完成后的确认。 |
+PIR 触发采集时，[摄像头固件](firmware/camera/README.md)优先处理事件，将最多 5 张 FHD JPEG 复制到独立缓冲区，录制约 4 秒音频，再用独立的设备凭据通过 HTTPS 上传。采集及本地身份识别（如启用）结束后，若当前会话仍有效，预览即可恢复，无需等待服务器分析。使用身份固件时，人脸模板保存在摄像头本地，V2 上传包含身份元数据。上传成功仅表示证据已保存，不代表分析已经结束。
 
-**预览链路：** LCD 在摄像头 80 端口创建会话，在 81 端口接收 MJPEG。两条连接均使用明文 HTTP，通过 Bearer 认证头携带配对 token，适用于可信局域网。目前支持一个查看器，摄像头租约为 30 秒，LCD 每 10 秒续期。视频直接在局域网传输，服务器不承担实时视频中转。
+[服务器](server/main.py)保存媒体和 SQLite 状态，并按事件和照片编号聚合图片。收集窗口默认 30 秒，到期时缺图事件进入人工复核。独立的 [worker](server/worker.py) 在 CPU 模式下将完整事件交由人工复核，在 GPU 模式下使用 YOLO 和 Qwen 分析，再应用事件策略。家人豁免默认关闭；不确定或分析失败的情况需要复核。网页按设备归属限制访问，摄像头独立轮询结果，仅在收到 `suspicious` 时报警；轮询超时不代表正常。
 
-**事件链路：** PIR 触发后抢占预览，采集最多 5 张 FHD 图片和音频。驱动帧会先复制到独立缓冲，再进行网络发送。采集完成且当前会话仍有效时可以恢复预览，无需等待云端推理。上传成功仅表示证据已保存，不等于已经得到分析结论。服务器按照片编号聚合 5 张图片，允许网络到达顺序不同。收集窗口默认从第一张有效照片到达起计时 30 秒，可通过 `EVENT_WAIT_SECONDS` 配置；超时未完整到达的事件进入人工复核。完整事件交由 worker 处理，摄像头独立轮询最终结果。
-
-**身份与归属：** 摄像头上传凭据和 LCD 预览配对凭据相互独立。管理员将摄像头分配给普通用户；身份固件的人脸模板保存在摄像头本地，只有持久化成功并确认后登记才算完成。陌生身份本身不会直接触发报警，匹配到家人也不会自动豁免同一画面中的其他人。
-
-### 预览与事件采集调度
-
-[中文 HTML](lcd-capture-workflow-zh.html) · [English HTML](lcd-capture-workflow-en.html) · [查看高清原图](docs/architecture/lcd-capture-workflow-zh.png)
-
-![保留原 HTML 样式的预览与事件采集调度图](docs/architecture/lcd-capture-workflow-zh.png)
-
-GitHub 在 README 中显示 PNG 预览。需要使用缩放、搜索和路径追踪时，克隆后用浏览器打开对应 HTML；也可以从 GitHub 下载该 HTML 文件后在本地打开。
+点击架构图可放大查看。克隆后，用浏览器打开 HTML 可使用缩放、搜索和源码详情；页面默认浅色，保留主题与视觉风格切换按钮。
 
 ## 启动流程
 

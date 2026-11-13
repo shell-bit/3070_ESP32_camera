@@ -56,36 +56,19 @@ The source references are [camera pins](firmware/camera/main/camera_pins.h), [ca
 
 ## Architecture
 
-### Overall architecture
+The diagram connects the camera, LCD viewer, server and browser in one view, including live preview, event capture, processing and alarm feedback.
 
-The diagrams below are exported directly from the existing root HTML files, preserving their colors, layout and visual style. **They retain an earlier design snapshot:** `NEW`, `ADAPT`, `Planned` and “not implemented” refer to that stage. Preview sessions, camera ownership management and the LCD are now implemented. The tables and explanations below describe current code; performance values in the original diagrams remain design targets.
+[Interactive HTML](docs/architecture/system-en.html) · [Full-size SVG](docs/architecture/system-en.svg)
 
-[English HTML](esp32-lcd-overall-en.html) · [中文 HTML](esp32-lcd-overall-zh.html) · [Full-resolution image](docs/architecture/esp32-lcd-overall-en.png)
+[![Complete ESP32 monitoring system architecture](docs/architecture/system-en.svg)](docs/architecture/system-en.svg)
 
-![Overall architecture in the original HTML diagram style](docs/architecture/esp32-lcd-overall-en.png)
+The [LCD viewer](firmware/lcd_viewer/README.md) opens an authenticated session on camera port 80 and receives MJPEG directly on port 81. Both use the pairing token over HTTP on a trusted LAN; the server does not relay live video. The camera allows one viewing session with a 30-second lease, renewed by the LCD every 10 seconds.
 
-| Layer | Source | Responsibility |
-| --- | --- | --- |
-| Camera firmware | [firmware/camera](firmware/camera/README.md) | `main/main.cpp` initializes the device. The camera manager owns sensor access; other modules handle capture, preview, audio, uploads, identity and result polling. |
-| LCD firmware | [firmware/lcd_viewer](firmware/lcd_viewer/README.md) | `lcd_viewer.ino` composes board drivers, LVGL UI, saved configuration, clock and preview networking. |
-| Web application | [server/main.py](server/main.py) | FastAPI routes, device authentication, user sessions, owner-scoped data access, dashboard and ingestion. |
-| Persistence and event queue | [server/store.py](server/store.py), [server/event_queue.py](server/event_queue.py) | Media files plus SQLite metadata, ordered frame aggregation, queue and result state. No Redis or Celery service is required. |
-| Assessment and policy | [server/worker.py](server/worker.py), [server/alarm_policy.py](server/alarm_policy.py) | Human-review routing or model inference, actor association and event-level decisions. |
-| Member lifecycle | [server/member_api.py](server/member_api.py), [server/device_commands.py](server/device_commands.py) | Enrollment/revocation requests, commands polled by cameras and acknowledgement of durable local changes. |
+PIR capture takes priority over preview. The [camera firmware](firmware/camera/README.md) copies up to five FHD JPEGs into owned memory, records approximately four seconds of audio, and uploads evidence over HTTPS using separate device credentials. Preview can resume after capture and any local identity processing if the current session is still valid, without waiting for server assessment. With identity firmware, face templates stay on the camera and V2 uploads include identity metadata. Upload acknowledgement means the evidence was saved, not that assessment has finished.
 
-**Preview path.** The LCD creates a session on camera port 80 and reads MJPEG on port 81. Both use plain HTTP with the pairing token in a Bearer authorization header and are intended for a trusted LAN. One viewer is supported; the camera lease is 30 seconds and the LCD renews it every 10 seconds. Video stays on the LAN, so the server does not relay live preview.
+The [server](server/main.py) persists media and SQLite state, then groups frames by event and frame index. Incomplete events enter manual review when the collection window expires, 30 seconds by default. A separate [worker](server/worker.py) routes complete events to human review in CPU mode or YOLO/Qwen assessment and event policy in GPU mode. Family exemptions are disabled by default; uncertain or failed assessments require review. The dashboard limits access by device ownership. The camera polls for results and alarms only on `suspicious`; a timeout is not a normal verdict.
 
-**Event path.** A PIR event preempts preview and acquires up to five FHD images plus audio. Driver frames are copied to owned storage before network transfer. After acquisition, preview can resume if the current session is still valid; it does not wait for cloud inference. Upload acknowledgement means evidence was saved, not that assessment has finished. The server aggregates five frames by index; network arrival order may differ. Incomplete events expire to manual review when the collection window ends, by default 30 seconds from the first accepted frame (`EVENT_WAIT_SECONDS`). The worker processes complete events, and the camera separately polls the event result.
-
-**Identity and ownership.** Camera upload credentials and LCD pairing credentials are independent. Administrators assign cameras to viewer accounts. With the identity profile, face templates remain on the camera; enrollment is complete only after durable storage and acknowledgement. An unknown identity alone is not an alarm, and a family match does not automatically exempt other people in a scene.
-
-### Preview and event scheduling
-
-[English HTML](lcd-capture-workflow-en.html) · [中文 HTML](lcd-capture-workflow-zh.html) · [Full-resolution image](docs/architecture/lcd-capture-workflow-en.png)
-
-![Preview and event scheduling in the original HTML diagram style](docs/architecture/lcd-capture-workflow-en.png)
-
-GitHub displays the PNG previews in this README. To use the HTML diagrams' zoom, search and route tools, open the corresponding file locally after cloning, or download the HTML file from GitHub and open it in a browser.
+Click the diagram to enlarge it. After cloning, open the HTML in a browser for zoom, search and source details. It starts in light mode and retains theme and visual-style controls.
 
 ## Startup
 
