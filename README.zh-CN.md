@@ -58,7 +58,7 @@
 
 下图将摄像头、LCD、服务器和浏览器整合在同一张架构图中，展示实时预览、事件采集、服务器处理和报警反馈的完整链路。
 
-[交互 HTML](docs/architecture/system-zh.html) · [查看原尺寸 SVG](docs/architecture/system-zh.svg)
+
 
 [![ESP32 监控系统完整架构图](docs/architecture/system-zh.svg)](docs/architecture/system-zh.svg)
 
@@ -223,4 +223,4 @@ LoRA 目录必须包含 `adapter_config.json` 和 `adapter_model.safetensors`。
 
 Wi-Fi 密码、配对/上传 token、初始管理员凭据、SQLite 数据库、个人图片/音频及本地人脸模板均应保留在 Git 之外。手机推送还需要独立配置 Firebase 项目并注册客户端，不属于基础监控启动的必需项。
 
-**English guide:** [Switch to English](README.md)
+

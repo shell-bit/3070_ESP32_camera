@@ -57,9 +57,6 @@ The source references are [camera pins](firmware/camera/main/camera_pins.h), [ca
 ## Architecture
 
 The diagram connects the camera, LCD viewer, server and browser in one view, including live preview, event capture, processing and alarm feedback.
-
-[Interactive HTML](docs/architecture/system-en.html) · [Full-size SVG](docs/architecture/system-en.svg)
-
 [![Complete ESP32 monitoring system architecture](docs/architecture/system-en.svg)](docs/architecture/system-en.svg)
 
 The [LCD viewer](firmware/lcd_viewer/README.md) opens an authenticated session on camera port 80 and receives MJPEG directly on port 81. Both use the pairing token over HTTP on a trusted LAN; the server does not relay live video. The camera allows one viewing session with a 30-second lease, renewed by the LCD every 10 seconds.
@@ -223,4 +220,3 @@ The LoRA directory must contain `adapter_config.json` and `adapter_model.safeten
 
 Keep Wi-Fi credentials, pairing/upload tokens, initial admin credentials, SQLite databases, personal images/audio and local face templates outside Git. Optional mobile push additionally requires a configured Firebase project and a registered client; it is separate from basic monitoring.
 
-**中文使用说明：** [切换到简体中文](README.zh-CN.md)
