@@ -45,6 +45,18 @@ For Arduino IDE, set the Sketchbook location to `firmware` under the repository 
 
 `lcd_viewer.ino.bin` is the application image. The merged factory image `lcd_viewer.ino.merged.bin` is written at flash address `0x0` and overwrites the viewer’s NVS settings. Use a normal Arduino upload with flash erase disabled to preserve pairing and Wi-Fi settings on the existing partition layout.
 
+### Update camera pairing when uploading firmware
+
+Copy [camera_setup.example.json](camera_setup.example.json) to `camera_setup.json` in the sketch directory. Set `camera_host` to the camera's LAN IPv4 address or hostname and `token` to its `PROJECT_PREVIEW_TOKEN` value. From the repository root, run this command with the LCD board's serial port.
+
+```sh
+python3 firmware/lcd_viewer/tools/flash_camera_config.py --port /dev/cu.usbmodem1101
+```
+
+The script validates the JSON, compiles `lcd_viewer.ino` with the new values, and uploads it with flash erase disabled. To use Arduino IDE's **Upload** button, run the same command without `--port` each time you edit the JSON, then upload this sketch using the settings above. This prepares the sketch-local `camera_setup.local.h` for that upload.
+
+On boot, the viewer loads its saved configuration from NVS and then applies each prepared camera configuration once. It changes the camera host and token and keeps the saved Wi-Fi credentials and camera ports. If the viewer has no readable primary configuration yet, save Wi-Fi on the LCD first. The replacement is applied when the LCD restarts. The serial monitor at 115200 baud reports `Camera config applied from firmware` after the update. If writing the revision fails, the viewer retries on its next boot. The local JSON, generated header, and compiled firmware contain the pairing token. Keep them private.
+
 ## Connect and pair
 
 1. Open **Setup → Wi-Fi**. Select a network from the scan list or enter its SSID manually, including hidden networks. Enter the password, or select **Use open network** where appropriate, then choose **Save & restart**. The network must support an ordinary Wi-Fi connection without a web sign-in page.

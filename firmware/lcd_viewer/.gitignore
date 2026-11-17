@@ -2,3 +2,5 @@
 *.local.h
 __pycache__/
 setup.json
+/camera_setup.json
+/.camera_setup.*.tmp
