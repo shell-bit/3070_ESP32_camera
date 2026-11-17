@@ -1,1 +1,1 @@
--DLCD_SETUP_JSON_FILE='"/absolute/path/to/lcd_viewer/setup.json"'
+-DLCD_CAMERA_JSON_FILE='"/absolute/path/to/lcd_viewer/camera_setup.json"'

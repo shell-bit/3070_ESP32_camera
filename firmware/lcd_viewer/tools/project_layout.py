@@ -12,7 +12,7 @@ BUILD = PROJECT_ROOT / 'build/lcd_viewer'
 LIBRARIES = ROOT.parent / 'libraries'
 LVGL = LIBRARIES / 'lvgl'
 SOURCE_SUFFIXES = {'.ino', '.cpp', '.c', '.h', '.hpp', '.s'}
-SOURCE_RESOURCES = {'setup.json'}
+SOURCE_RESOURCES = {'camera_setup.json'}
 SOURCE_DOCUMENTS = {'src/ui/design.md'}
 
 

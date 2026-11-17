@@ -4,7 +4,6 @@
 #include <MD5Builder.h>
 #include <Preferences.h>
 #include <cJSON.h>
-#include <nvs.h>
 #include <cstddef>
 #include <cstring>
 
@@ -13,7 +12,7 @@ namespace {
 constexpr char storageNamespace[] = "lcd-preview";
 constexpr char primaryKey[] = "config";
 constexpr char previousKey[] = "config-prev";
-constexpr char setupBuildKey[] = "setup-build";
+constexpr char cameraBuildKey[] = "camera-build";
 constexpr size_t serialBudget = 512;
 
 static_assert(sizeof(ViewerConfig) == 360);
@@ -23,7 +22,6 @@ static_assert(offsetof(ViewerConfig, streamPort) == 358);
 // Only the setup/serial owner accesses NVS after boot. Hold the recovery
 // record across retries when a primary write may have committed but failed verification.
 bool protectPrevious = false;
-bool loadedFromPrevious = false;
 
 struct SerialInput {
     char line[512]{};
@@ -65,28 +63,6 @@ bool checkedWrite(Preferences& prefs, const char* key, const ViewerConfig& confi
         return reject(error, readbackError);
     }
     return true;
-}
-
-bool storedBlobPresent(nvs_handle_t handle, const char* key, bool& present) {
-    size_t length = 0;
-    const esp_err_t result = nvs_get_blob(handle, key, nullptr, &length);
-    present = result == ESP_OK;
-    return result == ESP_OK || result == ESP_ERR_NVS_NOT_FOUND;
-}
-
-bool inspectSetupKeys(bool& primary, bool& previous, bool& revision) {
-    primary = previous = revision = false;
-    nvs_handle_t handle;
-    const esp_err_t result = nvs_open(storageNamespace, NVS_READONLY, &handle);
-    if (result == ESP_ERR_NVS_NOT_FOUND) return true;
-    if (result != ESP_OK) return false;
-    // Preferences::isKey/getBytesLength collapse metadata errors into absence.
-    // Only an explicit NOT_FOUND may authorize first-time initialization.
-    const bool readable = storedBlobPresent(handle, primaryKey, primary) &&
-                          storedBlobPresent(handle, previousKey, previous) &&
-                          storedBlobPresent(handle, setupBuildKey, revision);
-    nvs_close(handle);
-    return readable;
 }
 
 template <size_t N>
@@ -135,27 +111,11 @@ void deleteConfigJson(cJSON* json) {
     cJSON_Delete(json);
 }
 
-bool uniqueSetupKeys(const cJSON* json) {
-    constexpr const char* keys[] = {
-        "wifi_ssid", "wifi_password", "camera_host", "token", "control_port", "stream_port"
-    };
-    unsigned seen = 0;
-    for (const auto* item = json->child; item; item = item->next) {
-        unsigned bit = 0;
-        for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]); ++i) {
-            if (item->string && std::strcmp(item->string, keys[i]) == 0) bit = 1U << i;
-        }
-        if (!bit || (seen & bit)) return false;
-        seen |= bit;
-    }
-    return true;
-}
-
-bool parseConfig(const char* line, ViewerConfig& config, ConfigError& error, bool strict = false) {
+bool parseConfig(const char* line, ViewerConfig& config, ConfigError& error) {
     if (hasInvalidUnicodeEscape(line)) return false;
     auto* json = cJSON_ParseWithOpts(line, nullptr, true);
     bool parsed = false;
-    if (cJSON_IsObject(json) && (!strict || uniqueSetupKeys(json))) {
+    if (cJSON_IsObject(json)) {
         if (!readString(json, "wifi_ssid", config.ssid)) error = ConfigError::Ssid;
         else if (!readString(json, "wifi_password", config.password)) error = ConfigError::Password;
         else if (!readString(json, "camera_host", config.host)) error = ConfigError::Host;
@@ -166,6 +126,20 @@ bool parseConfig(const char* line, ViewerConfig& config, ConfigError& error, boo
     }
     deleteConfigJson(json);
     return parsed;
+}
+
+bool parseBuiltCameraConfig(const char* line, ViewerConfig& candidate) {
+    if (hasInvalidUnicodeEscape(line)) return false;
+    auto* json = cJSON_ParseWithOpts(line, nullptr, true);
+    // Replace the full fields so no bytes from a previous host or token remain.
+    clearBytes(candidate.host, sizeof(candidate.host));
+    clearBytes(candidate.token, sizeof(candidate.token));
+    const bool parsed = cJSON_IsObject(json) && cJSON_GetArraySize(json) == 2 &&
+                        readString(json, "camera_host", candidate.host) &&
+                        readString(json, "token", candidate.token);
+    deleteConfigJson(json);
+    ConfigError error;
+    return parsed && std::strlen(candidate.token) >= 24 && validateCameraConfig(candidate, error);
 }
 
 void resetSerialLine() {
@@ -227,7 +201,6 @@ const char* configErrorText(ConfigError error) {
 }
 
 bool loadConfig(ViewerConfig& config) {
-    loadedFromPrevious = false;
     Preferences prefs;
     if (!prefs.begin(storageNamespace, true)) return false;
 
@@ -239,19 +212,16 @@ bool loadConfig(ViewerConfig& config) {
     if (!readBlob(prefs, previousKey, loaded.value)) return false;
 
     protectPrevious = true;
-    loadedFromPrevious = true;
     config = loaded.value;
     Serial.println("Config recovered from previous record");
     return true;
 }
 
 namespace {
-bool writeConfig(Preferences& prefs, const ViewerConfig& config, ConfigError& error,
-                 const ViewerConfig* verifiedPrimary = nullptr) {
+bool writeConfig(Preferences& prefs, const ViewerConfig& config, ConfigError& error) {
     if (!protectPrevious) {
         ConfigBuffer stored;
-        if (verifiedPrimary) std::memcpy(&stored.value, verifiedPrimary, sizeof(stored.value));
-        if (verifiedPrimary || readBlob(prefs, primaryKey, stored.value)) {
+        if (readBlob(prefs, primaryKey, stored.value)) {
             if (!checkedWrite(prefs, previousKey, stored.value,
                               ConfigError::BackupWrite, ConfigError::BackupReadback, error)) return false;
             protectPrevious = true;
@@ -273,28 +243,9 @@ bool saveConfig(const ViewerConfig& config, ConfigError& error) {
     return writeConfig(prefs, config, error);
 }
 
-void applyBuiltSetupConfig(ViewerConfig& config, const char* json, std::size_t length) {
-    if (!json || !length || length > 1024 || std::memchr(json, '\0', length)) {
-        Serial.println("Built setup config rejected: invalid setup JSON");
-        return;
-    }
-
-    // Parse only the supplied bytes, including callers without a trailing NUL.
-    char input[1025];
-    std::memcpy(input, json, length);
-    input[length] = '\0';
-    ConfigBuffer candidate;
-    // Include padding in the deterministic representation used for NVS readback
-    // and retry comparisons; a marker retry must not rotate the backup again.
-    clearBytes(&candidate.value, sizeof(candidate.value));
-    candidate.value.controlPort = ViewerConfig{}.controlPort;
-    candidate.value.streamPort = ViewerConfig{}.streamPort;
-    ConfigError error = ConfigError::None;
-    const bool parsed = parseConfig(input, candidate.value, error, true);
-    clearBytes(input, length);
-    if (!parsed || !validateConfig(candidate.value, error) ||
-        (candidate.value.token[0] && std::strlen(candidate.value.token) < 24)) {
-        Serial.println("Built setup config rejected: invalid setup JSON");
+void applyBuiltCameraConfig(ViewerConfig& config, const char* json, std::size_t length) {
+    if (length > 1024 || std::memchr(json, '\0', length)) {
+        Serial.println("Built camera config rejected: invalid camera JSON");
         return;
     }
 
@@ -306,50 +257,47 @@ void applyBuiltSetupConfig(ViewerConfig& config, const char* json, std::size_t l
     char revision[33];
     digest.getChars(revision);
 
-    bool hasPrimary, hasPrevious, hasRevision;
-    if (!inspectSetupKeys(hasPrimary, hasPrevious, hasRevision)) {
-        Serial.println("Setup config deferred: could not inspect saved settings");
-        return;
-    }
     Preferences prefs;
     if (!prefs.begin(storageNamespace, false)) {
         Serial.println(configErrorText(ConfigError::StorageUnavailable));
         return;
     }
-    ConfigBuffer stored;
-    const bool primaryReadable = readBlob(prefs, primaryKey, stored.value);
-    // An unreadable existing record is not a factory-new device. Keep recovery
-    // data intact even if a subsequent read after load happens to succeed.
-    if (loadedFromPrevious || (hasPrimary && !primaryReadable) ||
-        (!primaryReadable && hasPrevious)) {
-        Serial.println("Setup config deferred: could not read primary settings");
-        return;
-    }
-    if (primaryReadable) config = stored.value;
-
     char applied[sizeof(revision)];
-    if (hasRevision) {
-        if (prefs.getBytesLength(setupBuildKey) != sizeof(applied) ||
-            prefs.getBytes(setupBuildKey, applied, sizeof(applied)) != sizeof(applied)) {
-            Serial.println("Setup config deferred: could not read firmware revision");
+    if (prefs.isKey(cameraBuildKey)) {
+        if (prefs.getBytes(cameraBuildKey, applied, sizeof(applied)) != sizeof(applied)) {
+            Serial.println("Camera config deferred: could not read firmware revision");
             return;
         }
-        if (primaryReadable && std::memcmp(applied, revision, sizeof(applied)) == 0) return;
+        if (std::memcmp(applied, revision, sizeof(applied)) == 0) return;
     }
 
-    if (!primaryReadable || std::memcmp(&stored.value, &candidate.value, sizeof(config)) != 0) {
-        if (!writeConfig(prefs, candidate.value, error, primaryReadable ? &stored.value : nullptr)) {
+    ConfigBuffer candidate;
+    // A load from config-prev may have followed a transient read error.
+    // Only overwrite camera data when we can read the current primary record.
+    if (!readBlob(prefs, primaryKey, candidate.value)) {
+        Serial.println("Camera config deferred: could not read primary settings");
+        return;
+    }
+    config = candidate.value;
+    ConfigError error;
+    if (!parseBuiltCameraConfig(json, candidate.value) || !validateConfig(candidate.value, error)) {
+        Serial.println("Built camera config rejected: invalid camera JSON");
+        return;
+    }
+    if (std::strcmp(config.host, candidate.value.host) != 0 ||
+        std::strcmp(config.token, candidate.value.token) != 0) {
+        if (!writeConfig(prefs, candidate.value, error)) {
             Serial.println(configErrorText(error));
             return;
         }
         config = candidate.value;
     }
     // On interruption or marker failure, retry on boot without rewriting matching settings.
-    if (prefs.putBytes(setupBuildKey, revision, sizeof(revision)) != sizeof(revision)) {
-        Serial.println("Setup config saved; could not record firmware revision");
+    if (prefs.putBytes(cameraBuildKey, revision, sizeof(revision)) != sizeof(revision)) {
+        Serial.println("Camera config saved; could not record firmware revision");
         return;
     }
-    Serial.println("Setup config applied from firmware");
+    Serial.println("Camera config applied from firmware");
 }
 
 void restartAfterConfigSave() {

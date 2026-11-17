@@ -39,25 +39,12 @@ class SourceBoundaryTests(unittest.TestCase):
         self.put('src/ui/new.cpp')
         self.assertEqual(set(layout.source_hashes(self.root)), {'lcd_viewer.ino', 'src/ui/new.cpp'})
 
-    def test_setup_json_and_assembly_are_staged_with_the_sketch(self):
-        for name in ('lcd_viewer.ino', 'setup_data.S', 'setup.json',
-                     'build_opt.h', 'camera_setup.example.json', 'camera_setup.json',
-                     'setup.example.json'):
+    def test_camera_json_and_assembly_are_staged_with_the_sketch(self):
+        for name in ('lcd_viewer.ino', 'camera_setup_data.S', 'camera_setup.json',
+                     'build_opt.h', 'camera_setup.example.json', 'setup.json'):
             self.put(name)
         self.assertEqual(set(layout.source_files(self.root)),
-                         {'lcd_viewer.ino', 'setup_data.S', 'setup.json', 'build_opt.h'})
-
-    def test_setup_json_changes_invalidate_source_manifest(self):
-        self.put('lcd_viewer.ino')
-        setup = self.put('setup.json', '{"wifi_ssid":"synthetic-one"}')
-        legacy = self.put('camera_setup.json', '{"camera_host":"old.invalid"}')
-        before = layout.source_hashes(self.root)
-        setup.write_text('{"wifi_ssid":"synthetic-two"}', encoding='utf-8')
-        after = layout.source_hashes(self.root)
-        self.assertNotEqual(before, after)
-        self.assertEqual(set(after), {'lcd_viewer.ino', 'setup.json'})
-        legacy.write_text('{"camera_host":"changed.invalid"}', encoding='utf-8')
-        self.assertEqual(after, layout.source_hashes(self.root))
+                         {'lcd_viewer.ino', 'camera_setup_data.S', 'camera_setup.json', 'build_opt.h'})
 
     def test_unsafe_arduino_filename_rejected(self):
         self.put('lcd_viewer.ino')

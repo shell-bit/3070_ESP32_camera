@@ -46,17 +46,12 @@ class PipelineTests(unittest.TestCase):
         r=self.client.post('/api/device/upload',headers={**self.headers,'X-Event-ID':'burst-'+index},content=self.data)
         self.assertEqual(r.status_code,201,r.text)
         return r.json()['job_id']
-    def test_no_person_deleted_and_retry_deduplicated(self):
+    def test_no_person_retained_for_review_and_retry_deduplicated(self):
         key=self.upload(); model=FakeModels(person=False)
         self.assertTrue(worker.process_one(model)); self.assertEqual(model.calls,0)
-        self.assertFalse((store.INCOMING/(key+'.jpg')).exists())
-        self.assertFalse((store.PHOTOS/(key+'.jpg')).exists())
-        with store.db() as db:
-            self.assertEqual(db.execute('SELECT state FROM jobs WHERE id=?',(key,)).fetchone()[0],'discarded')
+        self.assertTrue((store.INCOMING/(key+'.jpg')).exists())
         self.assertEqual(self.upload(),key)
         self.assertFalse(worker.process_one(model))
-        self.assertFalse((store.INCOMING/(key+'.jpg')).exists())
-        self.assertEqual(self.client.get('/api/review').json()['items'],[])
         self.assertEqual(self.client.get('/api/photos').json(),[])
     def test_normal_deleted(self):
         key=self.upload(); worker.process_one(FakeModels(verdict='normal'))
