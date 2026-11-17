@@ -39,6 +39,13 @@ class SourceBoundaryTests(unittest.TestCase):
         self.put('src/ui/new.cpp')
         self.assertEqual(set(layout.source_hashes(self.root)), {'lcd_viewer.ino', 'src/ui/new.cpp'})
 
+    def test_camera_json_and_assembly_are_staged_with_the_sketch(self):
+        for name in ('lcd_viewer.ino', 'camera_setup_data.S', 'camera_setup.json',
+                     'build_opt.h', 'camera_setup.example.json', 'setup.json'):
+            self.put(name)
+        self.assertEqual(set(layout.source_files(self.root)),
+                         {'lcd_viewer.ino', 'camera_setup_data.S', 'camera_setup.json', 'build_opt.h'})
+
     def test_unsafe_arduino_filename_rejected(self):
         self.put('lcd_viewer.ino')
         self.put('src/extc++.h')

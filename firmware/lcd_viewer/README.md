@@ -47,15 +47,11 @@ For Arduino IDE, set the Sketchbook location to `firmware` under the repository 
 
 ### Update camera pairing when uploading firmware
 
-Copy [camera_setup.example.json](camera_setup.example.json) to `camera_setup.json` in the sketch directory. Set `camera_host` to the camera's LAN IPv4 address or hostname and `token` to its `PROJECT_PREVIEW_TOKEN` value. From the repository root, run this command with the LCD board's serial port.
+Edit `camera_setup.json` next to `lcd_viewer.ino`. Set `camera_host` to the camera's LAN IPv4 address or hostname and `token` to its 24–128 character `PROJECT_PREVIEW_TOKEN`. Save the JSON and click **Upload** in Arduino IDE with **Erase All Flash Before Sketch Upload** set to **Disabled**. The ESP32 build embeds the JSON directly in the application image.
 
-```sh
-python3 firmware/lcd_viewer/tools/flash_camera_config.py --port /dev/cu.usbmodem1101
-```
+For a new checkout, copy [camera_setup.example.json](camera_setup.example.json) to `camera_setup.json` and [build_opt.example.txt](build_opt.example.txt) to `build_opt.h` in the sketch directory. Set the absolute JSON path in `build_opt.h`, using forward slashes. Update that path if you move the sketch. Both local files are ignored by Git.
 
-The script validates the JSON, compiles `lcd_viewer.ino` with the new values, and uploads it with flash erase disabled. To use Arduino IDE's **Upload** button, run the same command without `--port` each time you edit the JSON, then upload this sketch using the settings above. This prepares the sketch-local `camera_setup.local.h` for that upload.
-
-On boot, the viewer loads its saved configuration from NVS and then applies each prepared camera configuration once. It changes the camera host and token and keeps the saved Wi-Fi credentials and camera ports. If the viewer has no readable primary configuration yet, save Wi-Fi on the LCD first. The replacement is applied when the LCD restarts. The serial monitor at 115200 baud reports `Camera config applied from firmware` after the update. If writing the revision fails, the viewer retries on its next boot. The local JSON, generated header, and compiled firmware contain the pairing token. Keep them private.
+On boot, the viewer loads its saved configuration from NVS and applies the newly embedded JSON once per change in its contents. It changes the camera host and token and keeps the saved Wi-Fi credentials and camera ports. If the viewer has no readable primary configuration yet, save Wi-Fi on the LCD first. The serial monitor at 115200 baud reports `Camera config applied from firmware` after the update. If writing the revision fails, the viewer retries on its next boot. Keep the local JSON and compiled firmware private because they contain the pairing token.
 
 ## Connect and pair
 

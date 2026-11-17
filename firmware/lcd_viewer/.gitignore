@@ -3,4 +3,4 @@
 __pycache__/
 setup.json
 /camera_setup.json
-/.camera_setup.*.tmp
+/build_opt.h

@@ -11,7 +11,8 @@ PROJECT_ROOT = ROOT.parents[1]
 BUILD = PROJECT_ROOT / 'build/lcd_viewer'
 LIBRARIES = ROOT.parent / 'libraries'
 LVGL = LIBRARIES / 'lvgl'
-SOURCE_SUFFIXES = {'.ino', '.cpp', '.c', '.h', '.hpp'}
+SOURCE_SUFFIXES = {'.ino', '.cpp', '.c', '.h', '.hpp', '.s'}
+SOURCE_RESOURCES = {'camera_setup.json'}
 SOURCE_DOCUMENTS = {'src/ui/design.md'}
 
 
@@ -49,7 +50,7 @@ def check_build_directory():
 def source_files(root=ROOT):
     root = Path(root)
     reject_link(root)
-    candidates = [p for p in root.iterdir() if p.suffix.lower() in SOURCE_SUFFIXES]
+    candidates = [p for p in root.iterdir() if p.suffix.lower() in SOURCE_SUFFIXES or p.name in SOURCE_RESOURCES]
     if (root / 'src').exists():
         candidates.extend(regular_files(root / 'src'))
     result = {}
@@ -61,7 +62,7 @@ def source_files(root=ROOT):
             raise ValueError(f'Invalid Arduino source name: {name}')
         if path.is_file() and name in SOURCE_DOCUMENTS:
             continue
-        if not path.is_file() or path.suffix.lower() not in SOURCE_SUFFIXES:
+        if not path.is_file() or (path.suffix.lower() not in SOURCE_SUFFIXES and name not in SOURCE_RESOURCES):
             raise ValueError(f'Unexpected file in Arduino sources: {path}')
         if path.suffix == '.ino' and name != 'lcd_viewer.ino':
             raise ValueError(f'Only the root lcd_viewer.ino sketch entry is supported: {name}')

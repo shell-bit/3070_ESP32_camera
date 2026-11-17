@@ -1,6 +1,7 @@
 #include "viewer_config.h"
 
 #include <Arduino.h>
+#include <MD5Builder.h>
 #include <Preferences.h>
 #include <cJSON.h>
 #include <cstddef>
@@ -242,7 +243,20 @@ bool saveConfig(const ViewerConfig& config, ConfigError& error) {
     return writeConfig(prefs, config, error);
 }
 
-void applyBuiltCameraConfig(ViewerConfig& config, const char* json, const char (&revision)[33]) {
+void applyBuiltCameraConfig(ViewerConfig& config, const char* json, std::size_t length) {
+    if (length > 1024 || std::memchr(json, '\0', length)) {
+        Serial.println("Built camera config rejected: invalid camera JSON");
+        return;
+    }
+
+    // Identify the JSON already applied so an ordinary reboot can retain touchscreen edits.
+    MD5Builder digest;
+    digest.begin();
+    digest.add(reinterpret_cast<const uint8_t*>(json), length);
+    digest.calculate();
+    char revision[33];
+    digest.getChars(revision);
+
     Preferences prefs;
     if (!prefs.begin(storageNamespace, false)) {
         Serial.println(configErrorText(ConfigError::StorageUnavailable));
