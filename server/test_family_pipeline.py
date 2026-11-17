@@ -46,6 +46,25 @@ class FamilyPipelineTests(Fixtures):
     def state(self,key):
         with store.db() as c:return dict(c.execute('SELECT * FROM events WHERE id=?',(key,)).fetchone())
 
+    def test_no_person_skips_joint_and_actor_analysis(self):
+        key=self.full_family()
+        model=ActorModels()
+        with patch.object(model,'has_person',return_value=False) as detect, \
+             patch.object(model,'assess_event') as assess, \
+             patch.object(model,'detect_people') as people, \
+             patch.object(model,'assess_actors') as actors:
+            self.assertTrue(worker.process_one(model))
+        self.assertEqual(detect.call_count,5)
+        assess.assert_not_called()
+        people.assert_not_called()
+        actors.assert_not_called()
+        self.assertEqual(self.state(key)['state'],'discarded')
+        self.assertEqual(json.loads(self.state(key)['report'])['status'],'normal')
+        self.assertEqual(list(store.INCOMING.glob('*.jpg')),[])
+        self.assertEqual(list(store.PHOTOS.glob('*.jpg')),[])
+        with store.db() as c:
+            self.assertEqual(c.execute('SELECT count(*) FROM push_events').fetchone()[0],0)
+
     def test_family_actor_private_media_no_push_and_device_terminal(self):
         key=self.full_family();self.assertTrue(worker.process_one(ActorModels()))
         self.assertEqual(self.state(key)['state'],'exempted')

@@ -17,7 +17,7 @@ and hardware setup.
 | Device and account management | Creates administrator/viewer accounts, assigns cameras to viewers, and issues device upload tokens. |
 | Evidence ingestion | Validates JPEG uploads and event WAV recordings and saves media with SQLite records. Registered cameras authenticate with per-device tokens; the legacy V1 path has a separate credential setting described below. V2 uploads also contain immutable identity metadata. |
 | Event aggregation | Groups images by device, event ID and frame index. Complete groups enter the worker queue; incomplete groups enter review after the collection deadline. |
-| GPU assessment | Runs YOLO on each frame. If a person is detected, Qwen with LoRA assesses the ordered image sequence; otherwise the event enters review. Identity events can also receive an assessment of which person performed each action. |
+| GPU assessment | Runs YOLO on each frame. If every frame is successfully checked and none has a detected person, the event finishes as normal, its JPEGs are deleted, and all subsequent model analysis is skipped. If any frame has a detected person, Qwen with LoRA assesses the ordered image sequence. Identity events with detected people can also receive an assessment of which person performed each action. |
 | CPU review | Preserves evidence for a human decision without loading vision models. |
 | Dashboard and review | Shows suspicious-event history, images, recordings and pending reviews, restricted to the owning viewer. Keep confirms a suspicious event, Dismiss removes its retained review images, and Retry requeues an eligible complete event. |
 | Alarm feedback | Returns the event status when the camera polls. The camera controls its own buzzer and red light. |

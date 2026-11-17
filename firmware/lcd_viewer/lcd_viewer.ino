@@ -5,8 +5,8 @@
 #include "src/board/jpeg_display.h"
 #include "src/clock/viewer_clock.h"
 
-extern "C" const char lcd_camera_setup_json[];
-extern "C" const uint32_t lcd_camera_setup_size;
+extern "C" const char lcd_setup_json[];
+extern "C" const uint32_t lcd_setup_size;
 
 bool ready=false;
 void setup() {
@@ -14,13 +14,9 @@ void setup() {
     if(!psramFound()) { Serial.println("PSRAM missing: select ESP32S3 Dev Module / OPI PSRAM");return; }
     if(!lcd::boardBegin() || !lcd::jpegDisplayBegin()) { Serial.println("Display allocation/init failed");return; }
     lcd::ViewerConfig config;
-    const bool loaded = lcd::loadConfig(config);
-    if (lcd_camera_setup_size != 0) {
-        if (loaded) {
-            lcd::applyBuiltCameraConfig(config, lcd_camera_setup_json, lcd_camera_setup_size);
-        } else {
-            Serial.println("Camera config deferred: no saved configuration could be read");
-        }
+    lcd::loadConfig(config);
+    if (lcd_setup_size != 0) {
+        lcd::applyBuiltSetupConfig(config, lcd_setup_json, lcd_setup_size);
     }
     if(!lcd::previewClientBegin(config)) { Serial.println("Preview resources unavailable");return; }
     lcd::viewerClockBegin();lcd::previewUiBegin();ready=true;
