@@ -35,6 +35,25 @@ bool initialized=false,streamIdle=true;
 bool scanReserved=false,scanCancelled=false;
 uint32_t scanRequest=0;
 SetupNetworkSnapshot setupSnapshot;
+
+constexpr uint32_t wifiRetryMs = 10000;
+bool driverWifiConfigReady = false;
+
+void connectSavedWifi() {
+    if (!driverWifiConfigReady) {
+        // Install the viewer's saved credentials once per radio start.
+        driverWifiConfigReady = WiFi.STA.begin(false) &&
+            WiFi.STA.connect(settings.ssid, settings.password, 0, nullptr, false);
+        if (!driverWifiConfigReady) return;
+    }
+
+    // WiFi.begin() rewrites STA settings and can fail during association.
+    const esp_err_t result = esp_wifi_connect();
+    if (result == ESP_ERR_WIFI_NOT_INIT || result == ESP_ERR_WIFI_NOT_STARTED) {
+        driverWifiConfigReady = false;
+    }
+}
+
 ESP_EVENT_DEFINE_BASE(LCD_SCAN_FENCE);
 std::atomic<uint32_t> fenceAck{0};
 std::atomic<bool> scanCallbackDone{false},scanCallbackFailed{false};
@@ -62,10 +81,10 @@ bool drainEventQueues() {
     return true;
 }
 class SetupRadio final:public ScanRadio {
-    bool drained_=true,restoreAuto_=false;
+    bool drained_=true;
 public:
     bool acquire() override {
-        restoreAuto_=WiFi.getAutoReconnect();WiFi.setAutoReconnect(false);drained_=false;
+        driverWifiConfigReady=false;drained_=false;
         scanCallbackDone.store(false);scanCallbackFailed.store(false);
         // 3.3.12 retries the FIRST failed connect even with auto reconnect off.
         // Stop/remove STA handlers, then flush both queues before re-enabling STA.
@@ -102,8 +121,7 @@ public:
         WiFi.scanDelete();drained_=true;return true;
     }
     void release() override {
-        WiFi.setAutoReconnect(wifiConfigured && restoreAuto_);
-        if(wifiConfigured)WiFi.begin(settings.ssid,settings.password);
+        if(wifiConfigured)connectSavedWifi();
     }
 };
 SetupRadio setupRadio;
@@ -175,7 +193,7 @@ void forgetSession(uint32_t gen) {
     newRequest();strlcpy(cameraState,"starting",sizeof cameraState);lastDisplayAt=0;lastSequence=0;
 }
 void controlTask(void*) {
-    uint32_t lastStatus=0,lastAttempt=millis()-2000,lastWifiAttempt=millis()-10000;
+    uint32_t lastStatus=0,lastAttempt=millis()-2000,lastWifiAttempt=millis();
     for(;;) {
         char retired[97]={};
         { Lock lock(stateMutex);strlcpy(retired,retiredSession,sizeof retired);retiredSession[0]=0; }
@@ -207,9 +225,10 @@ void controlTask(void*) {
             }
             vTaskDelay(pdMS_TO_TICKS(30));continue;
         }
-        if(wifiConfigured && WiFi.status()!=WL_CONNECTED && now-lastWifiAttempt>=10000) {
-            // Always use immutable application credentials, never SDK leftovers.
-            WiFi.begin(settings.ssid,settings.password);lastWifiAttempt=now;
+        if(wifiConfigured && !WiFi.STA.connected() && now-lastWifiAttempt>=wifiRetryMs) {
+            // An associated STA may still be waiting for DHCP.
+            connectSavedWifi();
+            lastWifiAttempt=millis();
         }
         const auto link=sampleSetupLink();
         { Lock lock(stateMutex);copySetupLink(setupSnapshot,link); }
@@ -325,14 +344,15 @@ bool previewClientBegin(const ViewerConfig& config) {
     incoming=static_cast<uint8_t*>(heap_caps_malloc(kMaxJpegBytes,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT));
     pending=static_cast<uint8_t*>(heap_caps_malloc(kMaxJpegBytes,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT));
     if(!stateMutex || !frameMutex || !incoming || !pending)return false;
-    WiFi.persistent(false);WiFi.setAutoReconnect(false);
+    WiFi.persistent(false);
+    // The viewer schedules retries so the core cannot race them by rewriting STA settings.
+    WiFi.setAutoReconnect(false);
     if(!WiFi.mode(WIFI_STA))return false;
-    // mode(STA) does not connect. In particular, an unconfigured boot never uses
-    // STA.begin()'s default tryConnect=true or stale SDK credentials.
+    // Unconfigured viewers leave the radio idle until the user requests a scan.
     if(!WiFi.onEvent(scanEvent))return false;
     if(esp_event_handler_register(LCD_SCAN_FENCE,0,fenceEvent,nullptr)!=ESP_OK)return false;
     WiFi.setSleep(true);
-    if(wifiConfigured) { WiFi.setAutoReconnect(true);WiFi.begin(settings.ssid,settings.password); }
+    if(wifiConfigured)connectSavedWifi();
     TaskHandle_t control=nullptr;
     if(xTaskCreatePinnedToCore(controlTask,"preview-control",8192,nullptr,2,&control,0)!=pdPASS)return false;
     if(configured && xTaskCreatePinnedToCore(streamTask,"preview-stream",6144,nullptr,1,nullptr,0)!=pdPASS) { vTaskDelete(control);return false; }
