@@ -159,14 +159,53 @@ class EventPipelineTests(unittest.TestCase):
         self.full('second')
         worker.process_one(FakeModels(subtype='property_damage'))
         self.assertEqual(self.client.get('/api/analysis/latest').json()['activity_type'],'suspicious')
-    def test_no_yolo_or_uncertain_retains_whole_group(self):
-        for event,model in [('no-person',FakeModels(people=[False]*5)),('uncertain',FakeModels('uncertain',evidence=[]))]:
-            self.full(event)
-            worker.process_one(model)
-            self.assertEqual(self.alarm(event).text,'review')
-        self.assertEqual(len(list(store.INCOMING.glob('*.jpg'))),10)
-        self.assertEqual(len(self.client.get('/api/review').json()['items']),2)
+    def test_no_person_discards_whole_group_and_retry_deduplicates(self):
+        uploaded=self.full('no-person')
+        model=FakeModels(people=[False]*5)
+        # Exercise cleanup in both media locations, including a duplicate copy.
+        first=uploaded[1]['job_id']+'.jpg'
+        (store.INCOMING/first).replace(store.PHOTOS/first)
+        second=uploaded[2]['job_id']+'.jpg'
+        (store.PHOTOS/second).write_bytes(self.jpeg)
+        self.assertTrue(worker.process_one(model))
+        self.assertEqual(len(model.detections),5)
+        self.assertEqual(model.calls,[])
+        self.assertEqual(self.alarm('no-person').text,'normal')
+        self.assertEqual(list(store.INCOMING.glob('*.jpg')),[])
+        self.assertEqual(list(store.PHOTOS.glob('*.jpg')),[])
+        self.assertEqual(self.client.get('/api/review').json()['items'],[])
+        self.assertEqual(self.client.get('/api/analysis/history').json()['items'],[])
+        with store.db() as c:
+            event=c.execute('SELECT state,report FROM events WHERE id=?',(uploaded[1]['event_key'],)).fetchone()
+            self.assertEqual(event['state'],'discarded')
+            self.assertEqual(json.loads(event['report'])['status'],'normal')
+            self.assertEqual(c.execute("SELECT count(*) FROM jobs WHERE state='discarded'").fetchone()[0],5)
+            self.assertEqual(c.execute('SELECT count(*) FROM push_events').fetchone()[0],0)
+        for index in range(1,6):
+            retry=self.upload(index,'no-person')
+            self.assertEqual(retry.status_code,201,retry.text)
+            self.assertTrue(retry.json()['duplicate'])
+            self.assertEqual(retry.json()['job_id'],uploaded[index]['job_id'])
+        self.assertFalse(worker.process_one(model))
+        self.assertEqual(list(store.INCOMING.glob('*.jpg')),[])
+        self.assertEqual(list(store.PHOTOS.glob('*.jpg')),[])
+    def test_uncertain_retains_whole_group(self):
+        self.full('uncertain')
+        worker.process_one(FakeModels('uncertain',evidence=[]))
+        self.assertEqual(self.alarm('uncertain').text,'review')
+        self.assertEqual(len(list(store.INCOMING.glob('*.jpg'))),5)
+        self.assertEqual(len(self.client.get('/api/review').json()['items']),1)
         self.assertEqual(self.client.get('/api/photos').json(),[])
+    def test_yolo_error_after_negative_frames_preserves_whole_group(self):
+        self.full()
+        model=FakeModels()
+        with patch.object(model,'has_person',side_effect=[False,False,RuntimeError('Simulated YOLO failure')]) as detect:
+            self.assertTrue(worker.process_one(model))
+        self.assertEqual(detect.call_count,3)
+        self.assertEqual(model.calls,[])
+        self.assertEqual(self.alarm().text,'review')
+        self.assertEqual(len(list(store.INCOMING.glob('*.jpg'))),5)
+        self.assertEqual(len(self.client.get('/api/review').json()['items']),1)
     def test_cross_owner_event_report_photos_review_and_device_state(self):
         self.full()
         worker.process_one(FakeModels())

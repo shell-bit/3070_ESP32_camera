@@ -45,13 +45,32 @@ For Arduino IDE, set the Sketchbook location to `firmware` under the repository 
 
 `lcd_viewer.ino.bin` is the application image. The merged factory image `lcd_viewer.ino.merged.bin` is written at flash address `0x0` and overwrites the viewer’s NVS settings. Use a normal Arduino upload with flash erase disabled to preserve pairing and Wi-Fi settings on the existing partition layout.
 
-### Update camera pairing when uploading firmware
+### Configure Wi-Fi and camera when uploading firmware
 
-Edit `camera_setup.json` next to `lcd_viewer.ino`. Set `camera_host` to the camera's LAN IPv4 address or hostname and `token` to its 24–128 character `PROJECT_PREVIEW_TOKEN`. Save the JSON and click **Upload** in Arduino IDE with **Erase All Flash Before Sketch Upload** set to **Disabled**. The ESP32 build embeds the JSON directly in the application image.
+Create or edit `setup.json` next to `lcd_viewer.ino`. Replace the placeholders in this example with the LCD's Wi-Fi credentials and the camera's pairing settings:
 
-For a new checkout, copy [camera_setup.example.json](camera_setup.example.json) to `camera_setup.json` and [build_opt.example.txt](build_opt.example.txt) to `build_opt.h` in the sketch directory. Set the absolute JSON path in `build_opt.h`, using forward slashes. Update that path if you move the sketch. Both local files are ignored by Git.
+```json
+{
+  "wifi_ssid": "YOUR_2_4_GHZ_WIFI",
+  "wifi_password": "YOUR_WIFI_PASSWORD",
+  "camera_host": "192.0.2.123",
+  "token": "REPLACE_WITH_CAMERA_PREVIEW_TOKEN",
+  "control_port": 80,
+  "stream_port": 81
+}
+```
 
-On boot, the viewer loads its saved configuration from NVS and applies the newly embedded JSON once per change in its contents. It changes the camera host and token and keeps the saved Wi-Fi credentials and camera ports. If the viewer has no readable primary configuration yet, save Wi-Fi on the LCD first. The serial monitor at 115200 baud reports `Camera config applied from firmware` after the update. If writing the revision fails, the viewer retries on its next boot. Keep the local JSON and compiled firmware private because they contain the pairing token.
+Use UTF-8 JSON without comments, at most 1024 bytes. All four string keys are required; the two integer ports are optional and default to 80/81 when omitted. Unknown or duplicate keys are rejected. `camera_host` accepts a LAN IPv4 address or hostname without a scheme, path or port. `token` must match the camera's 24–128 character `PROJECT_PREVIEW_TOKEN`. Set both camera strings to empty strings for Wi-Fi-only setup, or both Wi-Fi strings to empty strings for camera-only setup; at least one group must be complete. An empty password with a nonempty SSID means an open network.
+
+Copy [build_opt.example.txt](build_opt.example.txt) to `build_opt.h` in the sketch directory and set its `LCD_SETUP_JSON_FILE` value to the absolute path of `setup.json`, using forward slashes. Update that path if you move the sketch. Existing camera-only build options must be replaced; `LCD_CAMERA_JSON_FILE` now causes a migration error. The old `camera_setup.json` file is no longer read and may be kept locally. Both JSON filenames and `build_opt.h` remain ignored by Git.
+
+Save the files and click **Upload** in Arduino IDE with **Erase All Flash Before Sketch Upload** set to **Disabled**. The build embeds `setup.json` in the application and tracks it as a compiler dependency. Merely saving the file on the computer does not update the board. Without an embedding macro, the firmware continues to use saved settings, touchscreen Setup and USB provisioning.
+
+At boot, new JSON contents replace the complete configuration, including Wi-Fi and ports. A device with no saved configuration can be provisioned this way directly. Successful application reports `Setup config applied from firmware` at 115200 baud. Unchanged contents preserve later touchscreen/USB edits on ordinary reboots; even whitespace changes count as new contents. Empty groups clear their previous values. Invalid JSON leaves the saved configuration unchanged. Existing unreadable records defer embedded setup so that previous-record recovery is preserved. If recording the applied revision fails, the next boot retries without repeatedly rotating the backup.
+
+Keep local JSON files and firmware images private: they contain Wi-Fi credentials and the pairing token. The optional source exporter does not support provisioning resources, and the local release packager refuses a source set containing `setup.json`. Use the canonical sketch directly in Arduino IDE.
+
+You can check provisioning without a camera: use your actual Wi-Fi settings, the example address above and a synthetic token of at least 24 characters. After upload, check **Setup → Camera** for the address, **Token** for the token-present indicator, and **Connection info** for the original/desired Wi-Fi SSID. Power-cycle and verify the settings remain. A preview connection failure is expected without a camera and does not indicate a configuration-write failure. The success log is emitted only when new contents are applied, so opening the serial monitor later may miss it.
 
 ## Connect and pair
 
@@ -63,7 +82,7 @@ Either group can be saved first. Each touchscreen page saves only its own group 
 
 ### USB setup
 
-Stop preview and open **Setup → USB setup**. In a serial terminal at **115200 baud**, send one complete JSON line followed by a newline, using [setup.example.json](setup.example.json) as the template. A successful save writes the settings to NVS and restarts the board.
+Stop preview and open **Setup → USB setup**. In a serial terminal at **115200 baud**, send the JSON shape shown above as one complete line followed by a newline. A successful save writes the settings to NVS and restarts the board. If the firmware still contains new, unapplied setup contents, those contents can replace the USB settings on that restart; keep the two inputs consistent.
 
 USB setup replaces the whole configuration. Include all four string keys. To save Wi-Fi only, set both `camera_host` and `token` to empty strings. To save only camera settings, set both `wifi_ssid` and `wifi_password` to empty strings. Emptying a group clears its previous values. Omitted port keys use 80 and 81.
 
@@ -85,5 +104,7 @@ The camera supports one active preview session with a **30-second lease**. The L
 The [Arduino sketch](lcd_viewer.ino) starts the board, configuration, networking, clock, and UI. Under `src/`, `board/` owns display, touch, and JPEG decoding, `config/` owns provisioning and NVS, `preview/` owns session control and MJPEG parsing, and `clock/` and `ui/` provide the visible interface. Two 128 KiB JPEG buffers and two 320 × 240 RGB565 buffers in PSRAM keep receiving and decoding separate without a growing frame queue.
 
 The build runs the portable MJPEG and session checks first. To run just those checks from the repository root, use `& ./firmware/lcd_viewer/build.ps1 -HostTestsOnly`. For synthetic UI rendering and controller checks, use `python firmware/lcd_viewer/tools/render_ui.py` with the pinned LVGL library, GCC, G++, `ar`, and Python Pillow installed.
+
+The focused embedded-setup host suite is separate: `python -B firmware/lcd_viewer/tools/run_config_tests.py`. It compiles the production configuration code with in-memory storage/serial test doubles and the existing `firmware/camera/vendor/cjson` parser. GCC and G++ plus that test-only sibling source are required; they are not extra LCD firmware dependencies. These checks do not establish physical NVS durability or camera connectivity.
 
 Display, touch, Wi-Fi, preview timing, and power behavior require checks on the actual board. See [third-party dependencies and licenses](THIRD_PARTY.md).

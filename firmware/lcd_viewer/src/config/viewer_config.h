@@ -106,8 +106,8 @@ inline bool ViewerConfig::cameraReady() const {
 bool loadConfig(ViewerConfig& config);
 bool saveConfig(const ViewerConfig& config, ConfigError& error);
 
-// Apply the embedded camera settings to a configuration read successfully from NVS.
-void applyBuiltCameraConfig(ViewerConfig& config, const char* json, std::size_t length);
+// Apply a new embedded full setup once, including on a device without saved settings.
+void applyBuiltSetupConfig(ViewerConfig& config, const char* json, std::size_t length);
 
 // JSON provisioning over local USB serial while idle. Never echoes secrets.
 bool pollConfigSerial();

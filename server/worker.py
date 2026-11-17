@@ -142,7 +142,10 @@ def process_one(models):
             paths=[p if p.is_file() else PHOTOS/p.name for p in paths]
             detections=[models.has_person(path) for path in paths]
             if not any(detections):
-                result=('uncertain','No person was detected in this event. Manual review is required.',None,[])
+                finish_event(event,frames,'normal',
+                    'YOLO did not detect a person in any event frame above the configured threshold.',None,[])
+                logging.info('Event %s: normal (no person detected; frames discarded)',event['id'])
+                return True
             elif hasattr(models,'assess_event'):
                 result=models.assess_event(paths,frames)
             elif len(frames)==1:
