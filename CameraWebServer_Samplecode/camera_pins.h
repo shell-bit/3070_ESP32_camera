@@ -1,6 +1,6 @@
 #pragma once
 
-// Existing ESP32-S3 / OV5640 camera wiring. Keep these GPIO values unchanged.
+// Existing ESP32-S3 camera connector wiring, shared by this project's OV3660/OV5640 modules.
 #define PWDN_GPIO_NUM -1
 #define RESET_GPIO_NUM -1
 #define XCLK_GPIO_NUM 15

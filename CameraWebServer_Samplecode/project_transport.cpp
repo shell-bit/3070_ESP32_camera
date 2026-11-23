@@ -23,12 +23,7 @@ void syncProjectClock() {
   }
   String target = projectServerUrl("");
   if (target.startsWith("https://")) {
-    String host = target.substring(8);
-    IPAddress address;
-    if (WiFi.hostByName(host.c_str(), address))
-      Serial.printf("HTTPS target: %s -> %s (hostname retained for TLS)\n", host.c_str(), address.toString().c_str());
-    else
-      Serial.printf("HTTPS target DNS lookup failed: %s\n", host.c_str());
+    Serial.printf("Verified HTTPS target: %s\n", target.c_str());
   }
 }
 bool configureProjectTls(WiFiClientSecure &client) {

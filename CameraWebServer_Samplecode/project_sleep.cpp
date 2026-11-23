@@ -23,9 +23,11 @@ static void outputOff(int pin, int activeLevel, bool hold) {
 void powerDownProjectCamera() {
   sensor_t *sensor = esp_camera_sensor_get();
   if (sensor) {
-    // OV5640 system-control software standby, then release buffers and XCLK.
-    if (sensor->id.PID == OV5640_PID)
-      sensor->set_reg(sensor, 0x3008, 0x40, 0x40);
+    // Both sensors use 0x3008 bit 6 for software standby. This is not a power cut.
+    if (sensor->id.PID == OV5640_PID || sensor->id.PID == OV3660_PID) {
+      if (sensor->set_reg(sensor, 0x3008, 0x40, 0x40) != 0)
+        Serial.println("Camera standby command failed; releasing camera buffers and clock.");
+    }
     esp_camera_deinit();
   }
 }

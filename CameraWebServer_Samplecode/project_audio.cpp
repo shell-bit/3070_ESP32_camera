@@ -1,14 +1,17 @@
 #include <Arduino.h>
+#include <atomic>
 #include <ESP_I2S.h>
 #include <HTTPClient.h>
 #include <WiFi.h>
 #include <WebSocketsClient.h>
 #include <ArduinoJson.h>
 #include "esp_heap_caps.h"
+#include "miniz.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
 #include "project_settings.h"
 #include "project_audio.h"
+#include "project_ai_alarm.h"
 #include "project_transport.h"
 
 namespace {
@@ -16,9 +19,13 @@ constexpr uint32_t RATE = 16000;
 I2SClass mic(I2S_NUM_0), amp(I2S_NUM_1);
 uint8_t *wav = nullptr;
 size_t wavSize = 0;
+uint8_t *packedWav = nullptr;
+size_t packedSize = 0;
+bool packingAttempted = false;
 SemaphoreHandle_t recorded = nullptr;
 volatile bool recording = false;
 bool talkStarted = false;
+std::atomic<bool> sleepReportedOnSocket{false};
 volatile bool networkRunning = false, playbackRunning = false, talkWorkerRunning = false, liveMicRunning = false;
 volatile bool microphoneInitialized = false, microphoneReady = false;
 volatile bool speakerInitialized = false, speakerReady = false, activeTalkSession = false;
@@ -36,7 +43,7 @@ void changeCall(bool active) {
   activeTalkSession=false;++talkGeneration;
   clearQueue(playQueue);clearQueue(captureQueue);
   activeTalkSession=active;
-  Serial.println(active ? "INTERCOM ACTIVE: live microphone and speaker; staying awake until End call." : "INTERCOM STOPPED: microphone stream off; idle sleep timer restarted.");
+  Serial.println(active ? "INTERCOM ACTIVE: live microphone and speaker; staying awake until End call or Sleep now." : "INTERCOM STOPPED: microphone stream off.");
 }
 
 void put16(uint8_t *p, uint16_t x) { p[0] = x; p[1] = x >> 8; }
@@ -118,41 +125,59 @@ void liveMicTask(void *) {
   }
   mic.end();microphoneReady=false;liveMicRunning=false;vTaskDelete(nullptr);
 }
-void networkTask(void *) {
+// Return from this function before deleting the task so local TLS/socket objects are released.
+void runIntercom() {
   unsigned long initializedAt=millis();
   while((!speakerInitialized || !microphoneInitialized) && millis()-initializedAt<5000) delay(10);
   if(!speakerReady || !microphoneReady) {
     Serial.println("Intercom unavailable: microphone or speaker initialization failed.");
     reportProjectAudioState("error");networkRunning=false;
     while(playbackRunning || liveMicRunning) delay(20);
-    talkWorkerRunning=false;vTaskDelete(nullptr);return;
+    return;
   }
   String origin=projectServerUrl("");
   // projectServerUrl returns the base when passed an empty suffix.
   if(!origin.startsWith("https://") || time(nullptr)<1700000000) {
     Serial.println("Intercom needs a verified HTTPS address and synchronized clock.");
     networkRunning=false;while(playbackRunning || liveMicRunning) delay(20);
-    talkWorkerRunning=false;vTaskDelete(nullptr);return;
+    return;
   }
   String host=origin.substring(8);int slash=host.indexOf('/');if(slash>=0)host=host.substring(0,slash);
   uint16_t port=443;int colon=host.indexOf(':');if(colon>=0){port=host.substring(colon+1).toInt();host=host.substring(0,colon);}
-  WebSocketsClient socket;
   String headers=String("X-Device-ID: ")+DEVICE_ID+"\r\nAuthorization: Bearer "+DEVICE_UPLOAD_TOKEN;
   unsigned long lastActive=millis(),lastPing=0;
+  bool closing=false,requestedSleep=false;
+  WebSocketsClient socket;
   socket.onEvent([&](WStype_t type,uint8_t *payload,size_t length) {
     if(type==WStype_CONNECTED) {
+      if(closing) return;
       lastTalkContact=millis();
-      socket.sendTXT("{\"type\":\"ready\"}");
+      socket.sendTXT("{\"type\":\"ready\",\"supports_sleep\":true}");
       Serial.println("INTERCOM READY: dashboard can listen and speak.");
     } else if(type==WStype_DISCONNECTED) {
-      changeCall(false);Serial.println("Intercom connection interrupted; reconnecting.");
-    } else if(type==WStype_TEXT) {
+      changeCall(false);
+      if(!closing) Serial.println("Intercom connection interrupted; reconnecting.");
+    } else if(type==WStype_TEXT && !closing) {
       JsonDocument message;
       if(deserializeJson(message,payload,length))return;
       const char *kind=message["type"] | "";lastTalkContact=millis();
       if(!strcmp(kind,"start")){changeCall(true);lastActive=millis();}
       else if(!strcmp(kind,"stop")){changeCall(false);lastActive=millis();}
-    } else if(type==WStype_BIN && activeTalkSession && length>0 && length<=LIVE_SAMPLES*2 && length%2==0) {
+      else if(!strcmp(kind,"sleep")) {
+        const char *id=message["id"] | "";
+        if(strlen(id)!=32 || strspn(id,"0123456789abcdef")!=32) return;
+        requestedSleep=closing=true;
+        changeCall(false);
+        networkRunning=false;
+        const bool pending=projectAiAlarmPending();
+        char ack[112];
+        snprintf(ack,sizeof(ack),"{\"type\":\"sleep_ack\",\"id\":\"%s\",\"state\":\"%s\"}",
+                 id,pending ? "waiting_for_alarm" : "closing");
+        socket.sendTXT(ack);
+        Serial.println(pending ? "Dashboard requested sleep: audio stopped; finishing the current AI alarm check."
+                               : "Dashboard requested sleep: closing the intercom and rearming the PIR.");
+      }
+    } else if(type==WStype_BIN && !closing && activeTalkSession && length>0 && length<=LIVE_SAMPLES*2 && length%2==0) {
       Frame frame={};frame.count=length/2;frame.generation=talkGeneration;memcpy(frame.samples,payload,length);
       if(xQueueSend(playQueue,&frame,0)!=pdTRUE) {Frame old;xQueueReceive(playQueue,&old,0);xQueueSend(playQueue,&frame,0);}
     }
@@ -160,8 +185,9 @@ void networkTask(void *) {
   // Same ESP32 built-in root bundle as HTTPS uploads; hostname verification stays enabled.
   socket.beginSslWithBundle(host.c_str(),port,"/api/device/intercom",bundleStart,bundleEnd-bundleStart,"");
   socket.setExtraHeaders(headers.c_str());socket.setReconnectInterval(2000);socket.enableHeartbeat(10000,5000,2);
-  while(millis()-lastActive<TALK_WINDOW_MS) {
+  while(!closing && millis()-lastActive<TALK_WINDOW_MS) {
     socket.loop();
+    if(closing) break;
     if(activeTalkSession && millis()-lastTalkContact<TALK_CONNECTION_GRACE_MS) lastActive=millis();
     else if(activeTalkSession) changeCall(false);
     if(socket.isConnected() && millis()-lastPing>=4000) {socket.sendTXT("{\"type\":\"ping\"}");lastPing=millis();}
@@ -171,10 +197,29 @@ void networkTask(void *) {
     }
     delay(1);
   }
+  closing=true;
   changeCall(false);
-  if(socket.isConnected()){socket.sendTXT("{\"type\":\"sleeping\"}");socket.loop();delay(100);}
-  socket.disconnect();networkRunning=false;
+  networkRunning=false;
   while(playbackRunning || liveMicRunning) delay(20);
+  // The main loop owns the LED/buzzer timer and the outstanding AI result.
+  // Keep the accepted request visible while those finish, without reopening the call.
+  while(requestedSleep && projectAiAlarmPending() && socket.isConnected()) {
+    socket.loop();
+    if(socket.isConnected() && millis()-lastPing>=4000) {socket.sendTXT("{\"type\":\"ping\"}");lastPing=millis();}
+    delay(20);
+  }
+  if(socket.isConnected() && !projectAiAlarmPending()) {
+    bool sent=socket.sendTXT("{\"type\":\"sleeping\"}");
+    socket.loop();delay(100);
+    if(sent) sleepReportedOnSocket.store(true);
+  }
+  socket.disconnect();
+}
+
+void networkTask(void *) {
+  runIntercom();
+  if(playQueue){vQueueDelete(playQueue);playQueue=nullptr;}
+  if(captureQueue){vQueueDelete(captureQueue);captureQueue=nullptr;}
   talkWorkerRunning=false;vTaskDelete(nullptr);
 }
 }
@@ -201,20 +246,54 @@ void finishProjectAudioRecording() {
   if(recording && recorded) xSemaphoreTake(recorded,pdMS_TO_TICKS((EVENT_AUDIO_SECONDS+3)*1000));
 }
 bool projectAudioPending() {return !recording && wav && wavSize>44;}
+bool projectAudioRecording() {return recording;}
+size_t projectAudioPendingBytes() {
+  if(recording) return 44+RATE*2*EVENT_AUDIO_SECONDS;
+  return projectAudioPending() ? wavSize : 0;
+}
 void discardProjectAudio() {
   finishProjectAudioRecording();
   if(recording) return; // Never free a buffer still owned by the recording task.
   free(wav);wav=nullptr;wavSize=0;
+  free(packedWav);packedWav=nullptr;packedSize=0;packingAttempted=false;
 }
-void uploadProjectAudio(const String &event) {
+static void packRecording() {
+  // Keep the original until the server confirms storage. Skip compression when
+  // it would save less than 5%, or if another component needs the PSRAM.
+  packingAttempted=true;
+  const size_t capacity=wavSize-wavSize/20;
+  auto *encoder=static_cast<tdefl_compressor *>(heap_caps_malloc(sizeof(tdefl_compressor),MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT));
+  if(!encoder) return;
+  packedWav=static_cast<uint8_t *>(heap_caps_malloc(capacity,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT));
+  unsigned long started=millis();
+  if(packedWav && tdefl_init(encoder,nullptr,nullptr,TDEFL_WRITE_ZLIB_HEADER|1)==TDEFL_STATUS_OKAY) {
+    size_t consumed=wavSize, produced=capacity;
+    if(tdefl_compress(encoder,wav,&consumed,packedWav,&produced,TDEFL_FINISH)==TDEFL_STATUS_DONE && consumed==wavSize)
+      packedSize=produced;
+  }
+  free(encoder);
+  if(!packedSize) {free(packedWav);packedWav=nullptr;}
+  Serial.printf("Event audio prepared: %u WAV bytes, %u upload bytes in %lu ms.\n",
+                unsigned(wavSize),unsigned(packedSize ? packedSize : wavSize),millis()-started);
+}
+void uploadProjectAudio(const String &event, HTTPClient &http, WiFiClientSecure &client, bool &acceptsDeflate) {
   if(!projectAudioPending()) return;
-  WiFiClientSecure client;HTTPClient http;
-  if(!beginRequest(http,client,projectServerUrl("/api/device/audio"))) return;
-  http.setTimeout(UPLOAD_RESPONSE_TIMEOUT_MS);
+  if(acceptsDeflate && !packingAttempted) packRecording();
+  const bool compressed=acceptsDeflate && packedSize>0;
+  bool reused=client.connected();
+  addProjectDeviceHeaders(http);
   http.addHeader("Content-Type","audio/wav");http.addHeader("X-Event-ID",event);
-  int code=http.POST(wav,wavSize);logProjectTransportError(client,code);http.end();
-  Serial.printf("Event audio upload HTTP %d (%u bytes).\n",code,unsigned(wavSize));
+  if(compressed) http.addHeader("Content-Encoding","deflate");
+  unsigned long start=millis();
+  const size_t bytes=compressed ? packedSize : wavSize;
+  int code=http.POST(compressed ? packedWav : wav,bytes);logProjectTransportError(client,code);
+  Serial.printf("Event audio upload HTTP %d (%u bytes in %lu ms, TLS %s).\n",
+                code,unsigned(bytes),millis()-start,reused?"reused":"new connection");
   if(code==200 || code==201) discardProjectAudio();
+  else if(compressed && (code==415 || code==422)) {
+    acceptsDeflate=false;
+    Serial.println("Server rejected the encoding; retrying the original WAV.");
+  }
   else if(code==401 || code==403 || code==409 || code==422) {
     Serial.println("Audio rejected: check the camera token and uploaded event. Skipping this recording.");
     discardProjectAudio();
@@ -238,6 +317,7 @@ bool pollProjectAudioTalk() {
 }
 
 void reportProjectAudioState(const char *state) {
+  if(sleepReportedOnSocket.load() && !strcmp(state,"sleeping")) return;
   if(WiFi.status()!=WL_CONNECTED) return;
   WiFiClientSecure client;HTTPClient http;
   String url=projectServerUrl("/api/device/talk?ready=false&state=")+state+"&device_id="+DEVICE_ID;

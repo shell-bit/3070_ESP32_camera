@@ -3,10 +3,17 @@
 ## What changed
 
 On PIR wake, the ESP32-S3 records five seconds from the INMP441 while taking its
-five OV5640 photos. It uploads the photos first, then a mono 16 kHz, 16-bit WAV
+five camera photos. On the same connector, the OV3660 defaults to 640 × 480
+RGB565 capture and the ESP32 encodes the JPEG. The OV5640 uses its native Full HD
+JPEG output. Serial Monitor shows the detected sensor, resolution and encoder on
+each capture. The camera uploads the photos first, then a mono 16 kHz, 16-bit WAV
 file associated with the same device/event ID. Five seconds is 160,044 bytes
-including the WAV header. If the photos finish first, it waits for the recording
-to finish before uploading.
+including the WAV header. Once Wi-Fi and verified HTTPS are ready, the photo
+upload can start while the microphone finishes its clip. After the server
+acknowledges the photo burst, the ESP32 sends a losslessly compressed WAV if the
+server advertises support and the encoded clip saves at least 5%. The dashboard
+stores the original audio samples. Serial Monitor reports both the number of
+bytes sent and the elapsed upload time.
 Before recording starts, the camera discards at least six warmup frames and
 normally spends about 1.2 seconds adjusting exposure under the capture lighting.
 The OV5640 noise profile keeps automatic exposure and white balance, limits gain
@@ -18,6 +25,8 @@ The existing retry window remains bounded; failed uploads cannot keep it awake
 forever. There is no SD-card storage in this implementation.
 
 After uploads, the board checks the AI alarm and listens for dashboard speech.
+A suspicious result or an armed classroom demo pulses the red LED and buzzer
+together for 30 seconds, with half a second on and half a second off.
 It stays available for 90 seconds while idle after uploads.
 An active intercom call keeps it awake even when the dashboard microphone is muted.
 Press End call to finish. After the call stops, the idle timer allows another
@@ -146,6 +155,30 @@ The existing APK was not rebuilt or physically tested in this update.
   Wi-Fi has internet access and allows NTP, or try a phone hotspot.
 
 ## Validation and limitations
+
+### Earlier OV3660 configuration — 17 November 2026
+
+The camera GPIOs stay the same because the module was changed on the same
+ESP32-S3 board and connector. The driver detects OV3660 automatically and prints
+`Sensor: OV3660 (PID 0x3660)`. Full HD JPEG, five photos and five-second audio
+remain enabled. The first captured JPEG's actual dimensions are printed too.
+
+OV3660 uses automatic exposure/gain/white balance, vertical flip, brightness +1
+and saturation -2, following Espressif's CameraWebServer example. The previous
+OV5640 raw-register gain/noise profile only runs when an OV5640 is detected.
+Both sensors receive their software-standby command before camera deinitialization.
+Software standby is not a physical power switch; the module remains supplied.
+
+`ESP32 local IP:` now prints immediately after Wi-Fi connects, even if clock
+synchronization later fails. This change does not fix an NTP/network failure;
+verified HTTPS still requires a valid clock. OPI PSRAM is still required on this
+board. No server-side change is needed for the JPEG camera swap.
+
+Driver reference: https://github.com/espressif/esp32-camera
+Image settings: Arduino-ESP32 3.3.12 CameraWebServer example.
+Verified compilation with Arduino-ESP32 3.3.12 and OPI PSRAM: 1,247,835 bytes
+of application flash and 59,188 bytes of static RAM.
+Actual OV3660 picture quality and wake/capture behavior require a hardware test.
 
 ### Live intercom update — 16 November 2026
 

@@ -15,7 +15,8 @@ static const int LIGHT_SENSOR_PIN = 2;
 static const int WHITE_LED_PIN = 21;
 static const int BUZZER_PIN = 47;
 static const int BUZZER_ACTIVE_LEVEL = HIGH;
-static const unsigned long BUZZER_DURATION_MS = 3000;
+static constexpr unsigned long ALARM_DURATION_MS = 30000UL;
+static constexpr unsigned long ALARM_PULSE_MS = 500UL; // Each on or off phase.
 
 static const int PIR_ACTIVE_LEVEL = HIGH;
 static const int WHITE_LED_ACTIVE_LEVEL = HIGH;
@@ -44,6 +45,11 @@ static const int BURST_COUNT = 5;
 
 // JPEG compression: larger values produce smaller, lower-quality photos.
 static const int PHOTO_JPEG_QUALITY = 16;
+// Default OV3660 path: capture an uncompressed VGA frame, then encode JPEG on the ESP32.
+// Selecting Full HD restores the OV3660's native JPEG encoder.
+static constexpr bool OV3660_FULL_HD = false;
+static constexpr int OV3660_JPEG_QUALITY = 12; // Native sensor, smaller value = higher quality.
+static constexpr uint8_t OV3660_SOFTWARE_JPEG_QUALITY = 78; // Software encoder, 1..100.
 
 // Fixed Cloudflare Worker upload endpoint.
 static const char LOCAL_DASHBOARD_UPLOAD_URL[] =
